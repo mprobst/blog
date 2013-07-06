@@ -1,0 +1,12 @@
+application: martin-probst-hrd
+version: go
+runtime: go
+api_version: go1
+
+handlers:
+- url: /favicon.ico
+  static_files: favicon.png
+  upload: favicon.png
+- url: /.*
+  script: _go_app
+  login: admin
