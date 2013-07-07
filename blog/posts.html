@@ -1,14 +1,12 @@
-{{define "posts"}}
+{{define "content"}}
 <header>
   <img src="/img/header.jpg" width="100%">
   <h1><a href="/">Martin Probst's weblog</a></h1>
 </header>
-{{range .}}
+{{range .Posts}}
   {{template "post" .}}
 {{else}}
-<article>No posts.</article>
+  <article>No posts.</article>
 {{end}}
-// Pagination
 <hr />
-{call .pagination data="all"/}
 {{end}}

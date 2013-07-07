@@ -3,24 +3,35 @@ package blog
 import (
 	"appengine"
 	"appengine/datastore"
+	"appengine/user"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/schema"
 	"net/http"
 	"time"
 )
 
 var router = mux.NewRouter()
 
+const postPrefix = "/{ymd:\\d{4}/\\d{2}/\\d{2}}/{slug}/"
+
 func init() {
-	router := mux.NewRouter()
+	router.Handle("/", http.RedirectHandler("/blog/", http.StatusSeeOther))
+
 	s := router.PathPrefix("/blog/").Subrouter()
+	s.StrictSlash(true)
 	s.HandleFunc("/", indexPage).Name("index")
 	s.HandleFunc("/edit", editPost).Name("newPost")
-	postPrefix := "/{year:\\d{4}}/{month:\\d{2}}/{day:\\d{2}}/{slug}/"
-	s.HandleFunc(postPrefix, showPost).
-		Name("showPost")
-	s.HandleFunc(
-		"/{year:\\d{4}}/{month:\\d{2}}/{day:\\d{2}}/{slug}/edit", editPost).
-		Name("editPost")
+
+	s.HandleFunc("/auth_check", func(rw http.ResponseWriter, req *http.Request) {
+		c := appengine.NewContext(req)
+		if user.IsAdmin(c) {
+			http.Error(rw, "OK", http.StatusOK)
+		} else {
+			http.Error(rw, "Unauthorized", http.StatusForbidden)
+		}
+	})
+	s.HandleFunc(postPrefix, showPost).Name("showPost")
+	s.HandleFunc(postPrefix+"edit", editPost).Name("editPost")
 
 	http.Handle("/", router)
 }
@@ -37,9 +48,30 @@ func indexPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var decoder = schema.NewDecoder()
+
 func editPost(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+
 	p := Post{}
-	if err := editTemplate.Execute(w, p); err != nil {
+	r.ParseForm()
+
+	c.Infof("Form data: %s", r.Form)
+
+	decoder.Decode(&p, r.Form)
+	p.Created = time.Now()
+	p.Updated = time.Now()
+
+	if r.Method == "POST" {
+
+		if err := storePost(c, &p); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/", http.StatusFound)
+	}
+
+	if err := renderEditPost(w, &p); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -48,6 +80,7 @@ func editPost(w http.ResponseWriter, r *http.Request) {
 func showPost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	c := appengine.NewContext(r)
+
 	post, err := getPost(c, vars["slug"])
 	if err == datastore.ErrNoSuchEntity {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -61,19 +94,4 @@ func showPost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-}
-
-func createPage(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
-	p := Post{
-		Title:   r.FormValue("title"),
-		Text:    r.FormValue("text"),
-		Created: time.Now(),
-		Updated: time.Now(),
-	}
-	if err := storePost(c, &p); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/", http.StatusFound)
 }
