@@ -81,30 +81,42 @@ func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) erro
 
 func showPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	post, comments, err := getPost(c, vars["slug"])
+	slug, ok := vars["slug"]
+	if !ok {
+		return datastore.ErrNoSuchEntity // hack, hack
+	}
+	post, comments, err := getPost(c, getSlug(c, slug))
 	if err != nil {
 		return err
 	}
 	return renderPost(w, post, comments)
 }
 
+func getSlug(c appengine.Context, slug string) *datastore.Key {
+	return datastore.NewKey(c, PostEntity, slug, 0, nil)
+}
+
 var decoder = schema.NewDecoder()
 
 func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error {
-	vars := mux.Vars(r)
 	p := Post{}
-	if slug, ok := vars["slug"]; ok && r.Method != "POST" {
+
+	vars := mux.Vars(r)
+	if slug, ok := vars["slug"]; ok {
+		p.Slug = getSlug(c, slug)
 		var err error
-		p, _, err = getPost(c, slug)
+		p, _, err = getPost(c, p.Slug)
 		if err != nil {
 			return err
 		}
-		c.Infof("Post %v", p)
-	} else {
-		r.ParseForm()
-		c.Infof("Form data: %s", r.Form)
-
-		decoder.Decode(&p, r.Form)
+	}
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			return err
+		}
+		if err := decoder.Decode(&p, r.Form); err != nil {
+			return err
+		}
 		p.Created = time.Now()
 	}
 	p.Updated = time.Now()
@@ -113,7 +125,11 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error
 		if err := storePost(c, &p); err != nil {
 			return err
 		}
-		http.Redirect(w, r, "/", http.StatusFound)
+		url, err := p.Route(routeShowPost)
+		if err != nil {
+			return err
+		}
+		http.Redirect(w, r, url.String(), http.StatusFound)
 		return nil
 	}
 
