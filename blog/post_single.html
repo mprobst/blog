@@ -1,0 +1,23 @@
+{{define "content"}}
+  {{template "post" .Post}}
+  <div class="comments_area" id="comments_area">
+    <hr/>
+    <div class="comments">
+    {{range $index, $comment := .Comments}}
+      <div class="comment" id="comment-{{ $index }}">
+        {{ $comment.Text | markdown }}
+        <div class="comment_byline">{{ $comment.Created | dateTime }} &mdash;
+          {{if $comment.AuthorUrl}}
+          <a href="{{ $comment.AuthorUrl }}" rel="nofollow">{{ $comment.Author }}</a>
+          {{else}}
+            {{ $comment.Author }}
+          {{end}}
+        </div>
+        <hr/>
+      </div>
+    {{else}}
+      <div class="comment">No comments.</div>
+    {{end}}
+    </div>
+  </div>
+{{end}}

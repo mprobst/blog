@@ -1,13 +1,13 @@
 {{define "post"}}
-<article id="{ .Slug }">
+<article id="{{ .Slug }}">
   <h2>{{if .Draft}}DRAFT{{end}} <a href="{{ .Url }}">{{ .Title }}</a></h2>
   <p class="post_byline">
     {{ .Created | dateTime }}
     &mdash;
-    <a href="/{{ .Url }}#comments_area" class="comments_link">
+    <a href="{{ .Url }}#comments_area" class="comments_link">
       {{ .NumComments }} comment{{if not .NumComments}}s{{end}}
     </a>
-    <span class="admin_link"> &mdash; <a href='{{.Url}}/edit'>Edit</a></span>
+    <span class="admin_link"> &mdash; <a href='{{ .EditUrl }}'>Edit</a></span>
   </p>
   <div>
     {{ .Text | markdown }}

@@ -1,0 +1,27 @@
+{{define "pagination"}}
+<div id="pagination">
+  {{if .Previous}}
+    <a href="{{$.baseUri}}{{ .Previous }}/">&#x2190; previous</a>
+  {{else}}
+    &#x2190; previous
+  {{end}}
+
+  {{range $index, $page := .Pages}}
+    {{if $index}}
+      &middot;
+      {{if $page}}
+        {{ $index }}
+      {{else}}
+        <a href="{{$.baseUri}}{{ $index }}/">{{ $index }}</a>
+      {{end}}
+    {{end}}
+  {{end}}
+  &middot;
+
+  {{if .Next}}
+    <a href="{{$.baseUri}}{{ .Next }}/">next &#x2192;</a>
+  {{else}}
+    next &#x2192;
+  {{end}}
+</div>
+{{end}}

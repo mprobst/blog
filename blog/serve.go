@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -17,9 +18,10 @@ const postPrefix = "/{ymd:\\d{4}/\\d{2}/\\d{2}}/{slug}/"
 func init() {
 	router.Handle("/", http.RedirectHandler("/blog/", http.StatusSeeOther))
 
-	s := router.PathPrefix("/blog/").Subrouter()
+	s := router.PathPrefix("/blog").Subrouter()
 	s.StrictSlash(true)
 	s.HandleFunc("/", indexPage).Name("index")
+	s.HandleFunc("/{page:\\d*}", indexPage).Name("indexAt")
 	s.HandleFunc("/edit", editPost).Name("newPost")
 
 	s.HandleFunc("/auth_check", func(rw http.ResponseWriter, req *http.Request) {
@@ -38,13 +40,23 @@ func init() {
 
 func indexPage(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	posts, err := getPosts(c, 1)
+	page, err := strconv.Atoi(mux.Vars(r)["page"])
+	if err != nil {
+		page = 1
+	}
+	posts, err := getPosts(c, page)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := renderPosts(w, posts, 0); err != nil {
+	count, err := getPageCount(c)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := renderPosts(w, posts, page, count); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -63,12 +75,12 @@ func editPost(w http.ResponseWriter, r *http.Request) {
 	p.Updated = time.Now()
 
 	if r.Method == "POST" {
-
 		if err := storePost(c, &p); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		http.Redirect(w, r, "/", http.StatusFound)
+		return
 	}
 
 	if err := renderEditPost(w, &p); err != nil {
@@ -81,7 +93,7 @@ func showPost(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	c := appengine.NewContext(r)
 
-	post, err := getPost(c, vars["slug"])
+	post, comments, err := getPost(c, vars["slug"])
 	if err == datastore.ErrNoSuchEntity {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -90,8 +102,9 @@ func showPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	err = renderPosts(w, []Post{post}, 0)
+	err = renderPost(w, post, comments)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }

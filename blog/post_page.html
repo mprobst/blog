@@ -1,12 +1,14 @@
 {{define "content"}}
-<header>
-  <img src="/img/header.jpg" width="100%">
-  <h1><a href="/">Martin Probst's weblog</a></h1>
-</header>
 {{range .Posts}}
   {{template "post" .}}
 {{else}}
   <article>No posts.</article>
 {{end}}
+
 <hr />
+
+{{if .Pagination}}
+  {{template "pagination" .Pagination}}
+{{end}}
+
 {{end}}
