@@ -4,6 +4,7 @@ import (
 	"appengine"
 	"appengine/datastore"
 	"appengine/memcache"
+	"appengine/user"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -64,6 +65,9 @@ func getPosts(c appengine.Context, page int) ([]Post, error) {
 		Order("-created").
 		Offset((page - 1) * postsPerPage).
 		Limit(postsPerPage)
+	if !user.IsAdmin(c) {
+		q = q.Filter("draft =", false)
+	}
 	posts := make([]Post, 0, postsPerPage)
 	keys, err := q.GetAll(c, &posts)
 	for i := 0; i < len(keys); i++ {
@@ -81,6 +85,11 @@ func getPost(c appengine.Context, slug string) (Post, []Comment, error) {
 	if err != nil {
 		return p, comments, err
 	}
+	if p.Draft && !user.IsAdmin(c) {
+		// Drafts 404 for non-admin users
+		return p, comments, datastore.ErrNoSuchEntity
+	}
+
 	p.Slug = k.StringID()
 	_, error := datastore.NewQuery(CommentEntity).
 		Ancestor(k).
