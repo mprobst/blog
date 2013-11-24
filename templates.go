@@ -27,15 +27,15 @@ var templates map[string]*template.Template
 
 func init() {
 	templates = make(map[string]*template.Template)
-	for _, tmpl := range []string{"blog/post_page.html", "blog/post_edit.html", "blog/post_single.html"} {
+	for _, tmpl := range []string{"tmpl/post_page.html", "tmpl/post_edit.html", "tmpl/post_single.html"} {
 		templates[tmpl] = template.Must(
 			template.New(tmpl).Funcs(funcMap).ParseFiles(
-				"blog/_layout.html", "blog/_post.html", "blog/_pagination.html", tmpl))
+				"tmpl/_layout.html", "tmpl/_post.html", "tmpl/_pagination.html", tmpl))
 	}
 }
 
 func renderPost(wr io.Writer, post Post, comments []Comment) error {
-	return renderTemplate(wr, templates["blog/post_single.html"], "layout", map[string]interface{}{
+	return renderTemplate(wr, templates["tmpl/post_single.html"], "layout", map[string]interface{}{
 		"baseUri":  "/",
 		"Post":     &post,
 		"Comments": comments,
@@ -58,7 +58,7 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) error {
 	pages := make([]bool, pageCount+1)
 	pages[page] = true
 
-	return renderTemplate(wr, templates["blog/post_page.html"], "layout", map[string]interface{}{
+	return renderTemplate(wr, templates["tmpl/post_page.html"], "layout", map[string]interface{}{
 		"baseUri": "/",
 		"Posts":   posts,
 		"Pagination": map[string]interface{}{
@@ -70,7 +70,7 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) error {
 }
 
 func renderEditPost(wr io.Writer, post *Post) error {
-	return renderTemplate(wr, templates["blog/post_edit.html"], "layout", map[string]interface{}{
+	return renderTemplate(wr, templates["tmpl/post_edit.html"], "layout", map[string]interface{}{
 		"baseUri": "/",
 		"Post":    post,
 	})
