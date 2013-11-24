@@ -26,10 +26,6 @@ var funcMap = template.FuncMap{
 var templates map[string]*template.Template
 
 func init() {
-	reload()
-}
-
-func reload() {
 	templates = make(map[string]*template.Template)
 	for _, tmpl := range []string{"blog/post_page.html", "blog/post_edit.html", "blog/post_single.html"} {
 		templates[tmpl] = template.Must(
