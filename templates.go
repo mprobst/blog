@@ -77,6 +77,7 @@ func renderEditPost(wr io.Writer, post *Post) error {
 }
 
 func renderTemplate(wr io.Writer, t *template.Template, name string, data map[string]interface{}) error {
+	// Buffer the rendered output so that potential errors don't end up mixed with the output
 	var buffer bytes.Buffer
 	var err error
 	if err = t.ExecuteTemplate(&buffer, name, data); err != nil {
