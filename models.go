@@ -8,7 +8,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/gorilla/mux"
 	"html/template"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -20,20 +22,34 @@ type Timestamps struct {
 }
 
 type Post struct {
-	Slug        string `datastore:"-"`
-	Title       string `datastore:"title,noindex"`
-	Text        string `datastore:"text,noindex"`
-	NumComments int32  `datastore:"numComments,noindex"`
-	Draft       bool   `datastore:"draft"`
+	Slug        *datastore.Key `datastore:"-"`
+	Title       string         `datastore:"title,noindex"`
+	Text        string         `datastore:"text,noindex"`
+	NumComments int32          `datastore:"numComments,noindex"`
+	Draft       bool           `datastore:"draft"`
 	Timestamps
 }
 
 func (p *Post) Url() (template.URL, error) {
-	return p.getRoute("showPost")
+	return p.TemplateRoute(routeShowPost)
 }
 
 func (p *Post) EditUrl() (template.URL, error) {
-	return p.getRoute("editPost")
+	return p.TemplateRoute(routeEditPost)
+}
+
+func (p *Post) Route(route *mux.Route) (*url.URL, error) {
+	return route.URL(
+		"ymd", p.Created.Format("2006/01/02"),
+		"slug", p.Slug.StringID())
+}
+
+func (p *Post) TemplateRoute(route *mux.Route) (template.URL, error) {
+	url, err := p.Route(route)
+	if err != nil {
+		return "", err
+	}
+	return template.URL(url.String()), nil
 }
 
 type Comment struct {
@@ -45,20 +61,12 @@ type Comment struct {
 	Timestamps
 }
 
-const PostEntity = "blog_post"
-const CommentEntity = "blog_comment"
-const postsPerPage = 10
-const postCountCacheKey = "blog_post_count"
-
-func (p *Post) getRoute(name string) (template.URL, error) {
-	url, err := router.GetRoute(name).URL(
-		"ymd", p.Created.Format("2006/01/02"),
-		"slug", p.Slug)
-	if err != nil {
-		return "", err
-	}
-	return template.URL(url.String()), nil
-}
+const (
+	PostEntity        = "blog_post"
+	CommentEntity     = "blog_comment"
+	postsPerPage      = 10
+	postCountCacheKey = "blog_post_count"
+)
 
 func getPosts(c appengine.Context, page int) ([]Post, error) {
 	q := datastore.NewQuery(PostEntity).
@@ -71,17 +79,16 @@ func getPosts(c appengine.Context, page int) ([]Post, error) {
 	posts := make([]Post, 0, postsPerPage)
 	keys, err := q.GetAll(c, &posts)
 	for i := 0; i < len(keys); i++ {
-		posts[i].Slug = keys[i].StringID()
+		posts[i].Slug = keys[i]
 	}
 	return posts, err
 }
 
-func getPost(c appengine.Context, slug string) (Post, []Comment, error) {
+func getPost(c appengine.Context, slug *datastore.Key) (Post, []Comment, error) {
 	p := Post{}
 	comments := make([]Comment, 0)
 
-	k := datastore.NewKey(c, PostEntity, slug, 0, nil)
-	err := datastore.Get(c, k, &p)
+	err := datastore.Get(c, slug, &p)
 	if err != nil {
 		return p, comments, err
 	}
@@ -90,9 +97,8 @@ func getPost(c appengine.Context, slug string) (Post, []Comment, error) {
 		return p, comments, datastore.ErrNoSuchEntity
 	}
 
-	p.Slug = k.StringID()
 	_, error := datastore.NewQuery(CommentEntity).
-		Ancestor(k).
+		Ancestor(slug).
 		Order("created").
 		GetAll(c, &comments)
 	if error != nil {
@@ -131,15 +137,18 @@ func getPageCount(c appengine.Context) (int, error) {
 
 func storePost(c appengine.Context, p *Post) error {
 	return datastore.RunInTransaction(c, func(c appengine.Context) error {
-		needRecount := p.Slug == ""
-		slug, err := slugify(c, p)
-		if err != nil {
+		newPost := p.Slug == nil
+		if newPost {
+			slug, err := slugify(c, p)
+			if err != nil {
+				return err
+			}
+			p.Slug = slug
+		}
+		if _, err := datastore.Put(c, p.Slug, p); err != nil {
 			return err
 		}
-		if _, err := datastore.Put(c, slug, p); err != nil {
-			return err
-		}
-		if needRecount {
+		if newPost {
 			c.Infof("Resetting blog_page_count")
 			memcache.Delete(c, postCountCacheKey)
 			getPageCount(c)
@@ -148,8 +157,10 @@ func storePost(c appengine.Context, p *Post) error {
 	}, &datastore.TransactionOptions{XG: true})
 }
 
-var slugRE = regexp.MustCompile("[^-A-Za-z0-9_]")
-var dashesRE = regexp.MustCompile("-{2,}")
+var (
+	slugRE   = regexp.MustCompile("[^-A-Za-z0-9_]")
+	dashesRE = regexp.MustCompile("-{2,}")
+)
 
 func TitleToSlug(title string) string {
 	slug := title
@@ -160,8 +171,8 @@ func TitleToSlug(title string) string {
 }
 
 func slugify(c appengine.Context, p *Post) (*datastore.Key, error) {
-	if p.Slug != "" {
-		return datastore.NewKey(c, PostEntity, p.Slug, 0, nil), nil
+	if p.Slug != nil {
+		return p.Slug, nil
 	}
 	slug := TitleToSlug(p.Title)
 	newSlug := slug
@@ -169,7 +180,7 @@ func slugify(c appengine.Context, p *Post) (*datastore.Key, error) {
 	for i := 1; i <= 5; i++ {
 		key := datastore.NewKey(c, PostEntity, newSlug, 0, nil)
 		if datastore.Get(c, key, &dummy) == datastore.ErrNoSuchEntity {
-			p.Slug = newSlug
+			p.Slug = key
 			return key, nil // Found a free one
 		}
 		newSlug = fmt.Sprint(slug, "-", i)
