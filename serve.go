@@ -12,6 +12,12 @@ import (
 )
 
 var router = mux.NewRouter()
+var routeIndex,
+	routeIndexAt,
+	routeNewPost,
+	routeAuthCheck,
+	routeShowPost,
+	routeEditPost *mux.Route
 
 const postPrefix = "/{ymd:\\d{4}/\\d{2}/\\d{2}}/{slug}/"
 
@@ -20,11 +26,8 @@ func init() {
 
 	s := router.PathPrefix("/blog").Subrouter()
 	s.StrictSlash(true)
-	s.HandleFunc("/", indexPage).Name("index")
-	s.HandleFunc("/{page:\\d*}", indexPage).Name("indexAt")
-	s.HandleFunc("/edit", editPost).Name("newPost")
 
-	s.HandleFunc("/auth_check", func(rw http.ResponseWriter, req *http.Request) {
+	routeAuthCheck = s.HandleFunc("/auth_check", func(rw http.ResponseWriter, req *http.Request) {
 		c := appengine.NewContext(req)
 		if user.IsAdmin(c) {
 			http.Error(rw, "OK", http.StatusOK)
@@ -32,79 +35,87 @@ func init() {
 			http.Error(rw, "Unauthorized", http.StatusForbidden)
 		}
 	})
-	s.HandleFunc(postPrefix, showPost).Name("showPost")
-	s.HandleFunc(postPrefix+"edit", editPost).Name("editPost")
+
+	routeIndex = s.HandleFunc("/", appEngineHandler(indexPage))
+	routeIndexAt = s.HandleFunc("/{page:\\d*}", appEngineHandler(indexPage))
+	routeShowPost = s.HandleFunc(postPrefix, appEngineHandler(showPost))
+	routeNewPost = s.HandleFunc("/new", appEngineHandler(editPost))
+	routeEditPost = s.HandleFunc(postPrefix+"edit", appEngineHandler(editPost))
 
 	http.Handle("/", router)
 }
 
-func indexPage(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
+func appEngineHandler(f func(c appengine.Context, rw http.ResponseWriter, r *http.Request) error) func(http.ResponseWriter, *http.Request) {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		c := appengine.NewContext(r)
+		if err := f(c, rw, r); err != nil {
+			handleError(rw, err)
+		}
+	}
+}
+
+func handleError(w http.ResponseWriter, err error) {
+	if err == datastore.ErrNoSuchEntity {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+	return
+}
+
+func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) error {
 	page, err := strconv.Atoi(mux.Vars(r)["page"])
 	if err != nil {
 		page = 1
 	}
 	posts, err := getPosts(c, page)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 	count, err := getPageCount(c)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
-	if err := renderPosts(w, posts, page, count); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	return renderPosts(w, posts, page, count)
+}
+
+func showPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error {
+	vars := mux.Vars(r)
+	post, comments, err := getPost(c, vars["slug"])
+	if err != nil {
+		return err
 	}
+	return renderPost(w, post, comments)
 }
 
 var decoder = schema.NewDecoder()
 
-func editPost(w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
-
+func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error {
+	vars := mux.Vars(r)
 	p := Post{}
-	r.ParseForm()
+	if slug, ok := vars["slug"]; ok && r.Method != "POST" {
+		var err error
+		p, _, err = getPost(c, slug)
+		if err != nil {
+			return err
+		}
+		c.Infof("Post %v", p)
+	} else {
+		r.ParseForm()
+		c.Infof("Form data: %s", r.Form)
 
-	c.Infof("Form data: %s", r.Form)
-
-	decoder.Decode(&p, r.Form)
-	p.Created = time.Now()
+		decoder.Decode(&p, r.Form)
+		p.Created = time.Now()
+	}
 	p.Updated = time.Now()
 
 	if r.Method == "POST" {
 		if err := storePost(c, &p); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return err
 		}
 		http.Redirect(w, r, "/", http.StatusFound)
-		return
+		return nil
 	}
 
-	if err := renderEditPost(w, &p); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-func showPost(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	c := appengine.NewContext(r)
-
-	post, comments, err := getPost(c, vars["slug"])
-	if err == datastore.ErrNoSuchEntity {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	err = renderPost(w, post, comments)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	return renderEditPost(w, &p)
 }
