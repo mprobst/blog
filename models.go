@@ -28,6 +28,14 @@ type Post struct {
 	Timestamps
 }
 
+func (p *Post) Url() (template.URL, error) {
+	return p.getRoute("showPost")
+}
+
+func (p *Post) EditUrl() (template.URL, error) {
+	return p.getRoute("editPost")
+}
+
 type Comment struct {
 	Author      string `datastore:"author,noindex"`
 	AuthorEmail string `datastore:"authorEmail,noindex"`
@@ -41,14 +49,6 @@ const PostEntity = "blog_post"
 const CommentEntity = "blog_comment"
 const postsPerPage = 10
 const postCountCacheKey = "blog_post_count"
-
-func (p *Post) Url() (template.URL, error) {
-	return p.getRoute("showPost")
-}
-
-func (p *Post) EditUrl() (template.URL, error) {
-	return p.getRoute("editPost")
-}
 
 func (p *Post) getRoute(name string) (template.URL, error) {
 	url, err := router.GetRoute(name).URL(
