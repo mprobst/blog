@@ -148,11 +148,13 @@ func storePost(c appengine.Context, p *Post) error {
 	}, &datastore.TransactionOptions{XG: true})
 }
 
-var slugRE = regexp.MustCompile("[^A-Za-z0-9_-]")
+var slugRE = regexp.MustCompile("[^-A-Za-z0-9_]")
 var dashesRE = regexp.MustCompile("-{2,}")
 
 func TitleToSlug(title string) string {
-	slug := slugRE.ReplaceAllLiteralString(title, "")
+	slug := title
+	slug = strings.Replace(slug, " ", "-", -1)
+	slug = slugRE.ReplaceAllLiteralString(slug, "")
 	slug = dashesRE.ReplaceAllLiteralString(slug, "-")
 	return strings.ToLower(slug)
 }
