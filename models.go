@@ -123,12 +123,20 @@ func getPageCount(c appengine.Context) (int, error) {
 			Value: buf,
 		}
 		memcache.Set(c, item) // ignore err
-		return count / postsPerPage, nil
+		pageCount := count / postsPerPage
+		if pageCount == 0 {
+			pageCount = 1
+		}
+		return pageCount, nil
 	} else if err != nil {
 		return -1, err
 	} else {
 		if value, cnt := binary.Varint(item.Value); cnt > 0 {
-			return int(value) / postsPerPage, nil
+			pageCount := int(value) / postsPerPage
+			if pageCount == 0 {
+				pageCount = 1
+			}
+			return pageCount, nil
 		} else {
 			return -1, errors.New("Cannot decode cached count")
 		}
