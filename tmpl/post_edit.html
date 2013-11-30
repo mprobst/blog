@@ -3,7 +3,7 @@
   <form method="post">
     <input id="post_title" name="Title" type="text" value="{{.Post.Title}}">
     <label>
-      <input id="draft" name="Draft" type="checkbox" {{if .Post.Draft}} checked{{end}}>
+      <input id="draft" name="Draft" type="checkbox" value="true" {{if .Post.Draft}} checked{{end}}>
       Draft
     </label>
     <textarea name="Text" rows="20">{{.Post.Text}}</textarea>
