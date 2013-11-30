@@ -85,7 +85,7 @@ func getPosts(c appengine.Context, page int) ([]Post, error) {
 }
 
 func getPost(c appengine.Context, slug *datastore.Key) (Post, []Comment, error) {
-	p := Post{}
+	p := Post{Slug: slug}
 	comments := make([]Comment, 0)
 
 	err := datastore.Get(c, slug, &p)
