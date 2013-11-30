@@ -114,6 +114,8 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error
 		if err := r.ParseForm(); err != nil {
 			return err
 		}
+		c.Infof("Form data: %v", r.Form)
+		r.Form.Del("action") // The button used to post, not of interest here
 		p.Draft = false      // Default to false, unless the form contains true
 		if err := decoder.Decode(&p, r.Form); err != nil {
 			return err
