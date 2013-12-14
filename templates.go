@@ -5,6 +5,9 @@ import (
 	"github.com/knieriem/markdown"
 	"html/template"
 	"io"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -27,10 +30,38 @@ var templates map[string]*template.Template
 
 func init() {
 	templates = make(map[string]*template.Template)
-	for _, tmpl := range []string{"tmpl/post_page.html", "tmpl/post_edit.html", "tmpl/post_single.html"} {
-		templates[tmpl] = template.Must(
-			template.New(tmpl).Funcs(funcMap).ParseFiles(
-				"tmpl/_layout.html", "tmpl/_post.html", "tmpl/_pagination.html", tmpl))
+
+	partials := make([]string, 0)
+	templateFiles := make([]string, 0)
+	err := filepath.Walk("tmpl", func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		fileName := filepath.Base(path)
+		if !strings.HasSuffix(fileName, ".html") {
+			return nil // Not a template
+		}
+		if strings.HasPrefix(filepath.Base(path), "_") {
+			partials = append(partials, path)
+		} else {
+			templateFiles = append(templateFiles, path)
+		}
+		return nil
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	log.Printf("Parsing templates %v with partials %v\n", templateFiles, partials)
+
+	for _, tmpl := range templateFiles {
+		current := template.New(tmpl).Funcs(funcMap)
+		template.Must(current.ParseFiles(tmpl))
+		for _, partial := range partials {
+			template.Must(current.ParseFiles(partial))
+		}
+		templates[tmpl] = current
 	}
 }
 
