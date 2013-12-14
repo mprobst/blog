@@ -6,6 +6,7 @@ import (
 	"appengine/user"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -43,6 +44,8 @@ func init() {
 	routeEditPost = s.HandleFunc(postPrefix+"edit", appEngineHandler(editPost))
 
 	http.Handle("/", router)
+
+	log.Println("Routes set up.")
 }
 
 func appEngineHandler(f func(c appengine.Context, rw http.ResponseWriter, r *http.Request) error) func(http.ResponseWriter, *http.Request) {
@@ -110,12 +113,15 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error
 			return err
 		}
 	}
+	var action string
+
 	if r.Method == "POST" {
 		if err := r.ParseForm(); err != nil {
 			return err
 		}
 		c.Infof("Form data: %v", r.Form)
-		r.Form.Del("action") // The button used to post, not of interest here
+		action = r.Form.Get("action")
+		r.Form.Del("action") // The button used to post, not of interest below
 		p.Draft = false      // Default to false, unless the form contains true
 		if err := decoder.Decode(&p, r.Form); err != nil {
 			return err
@@ -124,7 +130,7 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error
 	}
 	p.Updated = time.Now()
 
-	if r.Method == "POST" {
+	if r.Method == "POST" && action == "Post" {
 		if err := storePost(c, &p); err != nil {
 			return err
 		}

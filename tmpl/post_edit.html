@@ -10,5 +10,9 @@
     <input type="submit" name="action" value="Post">
     <input type="submit" name="action" value="Preview">
   </form>
+
+  <div>
+    {{.Post.Text|markdown}}
+  </div>
 </article>
 {{end}}
