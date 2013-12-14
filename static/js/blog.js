@@ -10,7 +10,7 @@ _gaq.push(['_trackPageview']);
 })();
 
 $(document).ready(function() {
-  // $("pre.prettyprint").addClass("linenums")
+  $("pre").addClass("prettyprint")
   if (typeof(prettyPrint) !== 'undefined') prettyPrint();
 })
 
