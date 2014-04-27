@@ -59,6 +59,7 @@ type Comment struct {
 	AuthorUrl   string `datastore:"authorUrl,noindex"`
 	Kind        string `datastore:"kind,noindex"`
 	Text        string `datastore:"text,noindex"`
+	Approved    bool   `datastore:"approved,noindex"`
 	Timestamps
 }
 
