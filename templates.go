@@ -2,7 +2,7 @@ package blog
 
 import (
 	"bytes"
-	"github.com/knieriem/markdown"
+	"github.com/mprobst/blackfriday"
 	"html/template"
 	"io"
 	"log"
@@ -12,17 +12,16 @@ import (
 	"time"
 )
 
-var parser = markdown.NewParser(&markdown.Extensions{})
+// var parser = markdown.NewParser(&markdown.Extensions{})
 
 var funcMap = template.FuncMap{
 	"dateTime": func(t time.Time) string {
 		return t.Format("Monday, January 2, 2006, 15:04")
 	},
 	"markdown": func(s string) template.HTML {
-		var buffer bytes.Buffer
-		reader := strings.NewReader(s)
-		parser.Markdown(reader, markdown.ToHTML(&buffer))
-		return template.HTML(buffer.String())
+		// MarkdownCommon sanitizes HTML.
+		formatted := string(blackfriday.MarkdownCommon([]byte(s)))
+		return template.HTML(formatted)
 	},
 }
 
