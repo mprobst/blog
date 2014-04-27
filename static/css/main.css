@@ -145,14 +145,10 @@ form {
   text-align: left;
 }
 form input[type="text"], form input[type="email"], form input[type="url"] {
-  -moz-box-sizing: border-box;
-  -webkit-box-sizing: border-box;
   box-sizing: border-box;
   width: 100%;
 }
 form textarea {
-  -moz-box-sizing: border-box;
-  -webkit-box-sizing: border-box;
   box-sizing: border-box;
   width: 100%;
 }
