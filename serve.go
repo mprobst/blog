@@ -4,6 +4,7 @@ import (
 	"appengine"
 	"appengine/datastore"
 	"appengine/user"
+	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
 	"log"
@@ -102,6 +103,10 @@ func getSlug(c appengine.Context, slug string) *datastore.Key {
 var decoder = schema.NewDecoder()
 
 func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error {
+	if !user.IsAdmin(c) {
+		return fmt.Errorf("Unauthorized")
+	}
+
 	p := Post{}
 
 	vars := mux.Vars(r)
@@ -112,6 +117,9 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error
 		if err != nil {
 			return err
 		}
+	} else {
+		// New post.
+		p.Created = time.Now()
 	}
 	var action string
 
@@ -126,7 +134,6 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error
 		if err := decoder.Decode(&p, r.Form); err != nil {
 			return err
 		}
-		p.Created = time.Now()
 	}
 	p.Updated = time.Now()
 
