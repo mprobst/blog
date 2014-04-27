@@ -28,8 +28,6 @@ var funcMap = template.FuncMap{
 
 var templates map[string]*template.Template
 
-const baseUri = "/blog/"
-
 func init() {
 	templates = make(map[string]*template.Template)
 
@@ -69,7 +67,6 @@ func init() {
 
 func renderPost(wr io.Writer, post Post, comments []Comment) {
 	renderTemplate(wr, templates["tmpl/post_single.html"], map[string]interface{}{
-		"baseUri":  baseUri,
 		"Post":     &post,
 		"Comments": comments,
 	})
@@ -92,8 +89,7 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) {
 	pages[page] = true
 
 	renderTemplate(wr, templates["tmpl/post_page.html"], map[string]interface{}{
-		"baseUri": baseUri,
-		"Posts":   posts,
+		"Posts": posts,
 		"Pagination": map[string]interface{}{
 			"Previous": previous,
 			"Next":     next,
@@ -104,14 +100,12 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) {
 
 func renderEditPost(wr io.Writer, post *Post) {
 	renderTemplate(wr, templates["tmpl/post_edit.html"], map[string]interface{}{
-		"baseUri": baseUri,
-		"Post":    post,
+		"Post": post,
 	})
 }
 
 func renderError(wr io.Writer, withDetail bool, msg string, details string) {
 	renderTemplate(wr, templates["tmpl/error.html"], map[string]interface{}{
-		"baseUri":        baseUri,
 		"Message":        msg,
 		"IncludeDetails": withDetail,
 		"Details":        details,
@@ -119,6 +113,7 @@ func renderError(wr io.Writer, withDetail bool, msg string, details string) {
 }
 
 func renderTemplate(wr io.Writer, t *template.Template, data map[string]interface{}) {
+	data["baseUri"] = "/blog/"
 	// Buffer the rendered output so that potential errors don't end up mixed with the output
 	var buffer bytes.Buffer
 	if err := t.ExecuteTemplate(&buffer, "layout", data); err != nil {
