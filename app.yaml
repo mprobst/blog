@@ -7,11 +7,11 @@ builtins:
 - remote_api: on
 
 handlers:
-- url: /img
+- url: /blog/img
   static_dir: static/img
-- url: /js
+- url: /blog/js
   static_dir: static/js
-- url: /css
+- url: /blog/css
   static_dir: static/css
 - url: /.*
   script: _go_app

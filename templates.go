@@ -28,6 +28,8 @@ var funcMap = template.FuncMap{
 
 var templates map[string]*template.Template
 
+const baseUri = "/blog/"
+
 func init() {
 	templates = make(map[string]*template.Template)
 
@@ -67,7 +69,7 @@ func init() {
 
 func renderPost(wr io.Writer, post Post, comments []Comment) error {
 	return renderTemplate(wr, templates["tmpl/post_single.html"], "layout", map[string]interface{}{
-		"baseUri":  "/",
+		"baseUri":  baseUri,
 		"Post":     &post,
 		"Comments": comments,
 	})
@@ -90,7 +92,7 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) error {
 	pages[page] = true
 
 	return renderTemplate(wr, templates["tmpl/post_page.html"], "layout", map[string]interface{}{
-		"baseUri": "/",
+		"baseUri": baseUri,
 		"Posts":   posts,
 		"Pagination": map[string]interface{}{
 			"Previous": previous,
@@ -102,7 +104,7 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) error {
 
 func renderEditPost(wr io.Writer, post *Post) error {
 	return renderTemplate(wr, templates["tmpl/post_edit.html"], "layout", map[string]interface{}{
-		"baseUri": "/",
+		"baseUri": baseUri,
 		"Post":    post,
 	})
 }
