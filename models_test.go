@@ -21,9 +21,14 @@ func (m *ModelsTest) TestSlugCreation(c *C) {
 		titleToSlug("Hello World     123 -- omg"), Equals, "hello-world-123-omg")
 }
 
-func (m *ModelsTest) TestPageCount(c *C) {
+func assertNewContext(c *C) aetest.Context {
 	ctx, err := aetest.NewContext(nil)
 	c.Assert(err, IsNil)
+	return ctx
+}
+
+func (m *ModelsTest) TestPageCount(c *C) {
+	ctx := assertNewContext(c)
 	defer ctx.Close()
 
 	c.Check(getPageCount(ctx), Equals, 1)
@@ -40,4 +45,26 @@ func (m *ModelsTest) TestPageCount(c *C) {
 	// Invalidate cache.
 	memcache.Delete(ctx, postCountCacheKey)
 	c.Check(getPageCount(ctx), Equals, 2)
+}
+
+func (m *ModelsTest) TestLoadStorePost(c *C) {
+	ctx := assertNewContext(c)
+	defer ctx.Close()
+
+	p := Post{
+		Title: "Hello World",
+		Text:  "Test content",
+		Timestamps: Timestamps{
+			Created: time.Now(),
+			Updated: time.Now(),
+		},
+	}
+	c.Assert(storePost(ctx, &p), IsNil)
+	c.Check(p.Slug, Not(IsNil))
+	c.Check(p.Slug.StringID(), Equals, "hello-world")
+
+	p, comments, err := loadPost(ctx, "hello-world")
+	c.Assert(err, IsNil)
+	c.Check(p.Title, Equals, "Hello World")
+	c.Check(len(comments), Equals, 0)
 }
