@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/schema"
 	"log"
 	"net/http"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -49,66 +50,71 @@ func init() {
 	log.Println("Routes set up, ready to serve.")
 }
 
-func appEngineHandler(f func(c appengine.Context, rw http.ResponseWriter, r *http.Request) error) func(http.ResponseWriter, *http.Request) {
+func appEngineHandler(f func(c appengine.Context, rw http.ResponseWriter, r *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		c := appengine.NewContext(r)
-		if err := f(c, rw, r); err != nil {
-			handleError(rw, err)
-		}
+		defer func() {
+			if r := recover(); r != nil {
+				stack := make([]byte, 4*(2<<10))
+				count := runtime.Stack(stack, false)
+				stack = stack[:count]
+				handleError(c, rw, r, stack)
+			}
+		}()
+		f(c, rw, r)
 	}
 }
 
-func handleError(w http.ResponseWriter, err error) {
-	if err == datastore.ErrNoSuchEntity {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
+func handleError(c appengine.Context, rw http.ResponseWriter, obj interface{}, stack []byte) {
+	code := http.StatusInternalServerError
+	msg := "An internal error occurred"
+	details := fmt.Sprintf("%s", stack)
+	if obj == datastore.ErrNoSuchEntity {
+		code = http.StatusNotFound
+		msg = "Not found"
+	} else if err, ok := obj.(error); ok {
+		c.Criticalf("Error: %+v\n%s", obj, stack)
+		details = fmt.Sprintf("Error: %s", err.Error())
+	} else {
+		c.Criticalf("Error: %+v\n%s", obj, stack)
+		details = fmt.Sprintf("Error: %+v\n%s", obj, details)
 	}
-	http.Error(w, err.Error(), http.StatusInternalServerError)
-	return
+	rw.WriteHeader(code)
+	renderError(rw, user.IsAdmin(c), msg, details)
 }
 
-func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) error {
+func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 	page, err := strconv.Atoi(mux.Vars(r)["page"])
 	if err != nil {
 		page = 1
 	}
-	posts, err := loadPosts(c, page)
-	if err != nil {
-		return err
-	}
+	posts := loadPosts(c, page)
 	count := getPageCount(c)
-	return renderPosts(w, posts, page, count)
+	renderPosts(w, posts, page, count)
 }
 
-func showPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error {
+func showPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	slug, ok := vars["slug"]
 	if !ok {
-		return datastore.ErrNoSuchEntity // hack, hack
+		panic(datastore.ErrNoSuchEntity) // hack, hack
 	}
-	post, comments, err := loadPost(c, slug)
-	if err != nil {
-		return err
-	}
-	return renderPost(w, post, comments)
+	post, comments := loadPost(c, slug)
+	renderPost(w, post, comments)
 }
 
 var decoder = schema.NewDecoder()
 
-func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error {
+func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 	if !user.IsAdmin(c) {
-		return fmt.Errorf("Unauthorized")
+		panic("Unauthorized")
 	}
 
 	p := Post{}
 
 	vars := mux.Vars(r)
 	if slug, ok := vars["slug"]; ok {
-		var err error
-		p, _, err = loadPost(c, slug)
-		if err != nil {
-			return err
-		}
+		p, _ = loadPost(c, slug)
 	} else {
 		// New post.
 		p.Created = time.Now()
@@ -117,29 +123,24 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error
 
 	if r.Method == "POST" {
 		if err := r.ParseForm(); err != nil {
-			return err
+			panic(err)
 		}
 		c.Infof("Form data: %v", r.Form)
 		action = r.Form.Get("action")
 		r.Form.Del("action") // The button used to post, not of interest below
 		p.Draft = false      // Default to false, unless the form contains true
 		if err := decoder.Decode(&p, r.Form); err != nil {
-			return err
+			panic(err)
 		}
 	}
 	p.Updated = time.Now()
 
 	if r.Method == "POST" && action == "Post" {
-		if err := storePost(c, &p); err != nil {
-			return err
-		}
-		url, err := p.Route(routeShowPost)
-		if err != nil {
-			return err
-		}
+		storePost(c, &p)
+		url := p.Route(routeShowPost)
 		http.Redirect(w, r, url.String(), http.StatusFound)
-		return nil
+		return
 	}
 
-	return renderEditPost(w, &p)
+	renderEditPost(w, &p)
 }

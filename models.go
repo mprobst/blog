@@ -30,26 +30,27 @@ type Post struct {
 	Timestamps
 }
 
-func (p *Post) Url() (template.URL, error) {
+func (p *Post) Url() template.URL {
 	return p.TemplateRoute(routeShowPost)
 }
 
-func (p *Post) EditUrl() (template.URL, error) {
+func (p *Post) EditUrl() template.URL {
 	return p.TemplateRoute(routeEditPost)
 }
 
-func (p *Post) Route(route *mux.Route) (*url.URL, error) {
-	return route.URL(
+func (p *Post) Route(route *mux.Route) *url.URL {
+	u, err := route.URL(
 		"ymd", p.Created.Format("2006/01/02"),
 		"slug", p.Slug.StringID())
+	if err != nil {
+		panic(err)
+	}
+	return u
 }
 
-func (p *Post) TemplateRoute(route *mux.Route) (template.URL, error) {
-	url, err := p.Route(route)
-	if err != nil {
-		return "", err
-	}
-	return template.URL(url.String()), nil
+func (p *Post) TemplateRoute(route *mux.Route) template.URL {
+	url := p.Route(route)
+	return template.URL(url.String())
 }
 
 type Comment struct {
@@ -68,7 +69,7 @@ const (
 	postCountCacheKey = "blog_post_count"
 )
 
-func loadPosts(c appengine.Context, page int) ([]Post, error) {
+func loadPosts(c appengine.Context, page int) []Post {
 	q := datastore.NewQuery(PostEntity).
 		Order("-created").
 		Offset((page - 1) * postsPerPage).
@@ -78,28 +79,31 @@ func loadPosts(c appengine.Context, page int) ([]Post, error) {
 	}
 	posts := make([]Post, 0, postsPerPage)
 	keys, err := q.GetAll(c, &posts)
+	if err != nil {
+		panic(err)
+	}
 	for i := 0; i < len(keys); i++ {
 		posts[i].Slug = keys[i]
 	}
-	return posts, err
+	return posts
 }
 
 func createSlug(c appengine.Context, slugString string) *datastore.Key {
 	return datastore.NewKey(c, PostEntity, slugString, 0, nil)
 }
 
-func loadPost(c appengine.Context, slugString string) (Post, []Comment, error) {
+func loadPost(c appengine.Context, slugString string) (Post, []Comment) {
 	slug := createSlug(c, slugString)
 	p := Post{Slug: slug}
 	comments := make([]Comment, 0)
 
 	err := datastore.Get(c, slug, &p)
 	if err != nil {
-		return p, comments, err
+		panic(err)
 	}
 	if p.Draft && !user.IsAdmin(c) {
 		// Drafts 404 for non-admin users
-		return p, comments, datastore.ErrNoSuchEntity
+		panic(datastore.ErrNoSuchEntity)
 	}
 
 	_, error := datastore.NewQuery(CommentEntity).
@@ -107,9 +111,9 @@ func loadPost(c appengine.Context, slugString string) (Post, []Comment, error) {
 		Order("created").
 		GetAll(c, &comments)
 	if error != nil {
-		return p, comments, err
+		panic(err)
 	}
-	return p, comments, err
+	return p, comments
 }
 
 // Counts posts and caches the result.
@@ -142,15 +146,12 @@ func getPageCount(c appengine.Context) int {
 	return (count / postsPerPage) + 1
 }
 
-func storePost(c appengine.Context, p *Post) error {
+func storePost(c appengine.Context, p *Post) {
 	newPost := p.Slug == nil
 
 	err := datastore.RunInTransaction(c, func(c appengine.Context) error {
 		if newPost {
-			slug, err := slugify(c, p)
-			if err != nil {
-				return err
-			}
+			slug := slugify(c, p)
 			p.Slug = slug
 		}
 		if _, err := datastore.Put(c, p.Slug, p); err != nil {
@@ -160,14 +161,13 @@ func storePost(c appengine.Context, p *Post) error {
 	}, &datastore.TransactionOptions{XG: true})
 
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	if newPost {
 		c.Infof("Resetting blog_page_count")
 		memcache.Delete(c, postCountCacheKey)
 	}
-	return nil
 }
 
 var (
@@ -183,9 +183,9 @@ func titleToSlug(title string) string {
 	return strings.ToLower(slug)
 }
 
-func slugify(c appengine.Context, p *Post) (*datastore.Key, error) {
+func slugify(c appengine.Context, p *Post) *datastore.Key {
 	if p.Slug != nil {
-		return p.Slug, nil
+		return p.Slug
 	}
 	slug := titleToSlug(p.Title)
 	newSlug := slug
@@ -194,9 +194,9 @@ func slugify(c appengine.Context, p *Post) (*datastore.Key, error) {
 		key := datastore.NewKey(c, PostEntity, newSlug, 0, nil)
 		if datastore.Get(c, key, &dummy) == datastore.ErrNoSuchEntity {
 			p.Slug = key
-			return key, nil // Found a free one
+			return key // Found a free one
 		}
 		newSlug = fmt.Sprint(slug, "-", i)
 	}
-	return nil, fmt.Errorf("no free slug for post with title: %s", p.Title)
+	panic(fmt.Errorf("no free slug for post with title: %s", p.Title))
 }

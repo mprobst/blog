@@ -37,10 +37,10 @@ func (m *ModelsTest) TestPageCount(c *C) {
 
 	for i := 0; i < 11; i++ {
 		p := Post{Title: fmt.Sprintf("t%d", i)}
-		c.Assert(storePost(ctx, &p), IsNil)
+		storePost(ctx, &p)
 	}
 	// Wait for writes to apply - no way to actually flush datastore for test.
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 
 	// Invalidate cache.
 	memcache.Delete(ctx, postCountCacheKey)
@@ -59,12 +59,11 @@ func (m *ModelsTest) TestLoadStorePost(c *C) {
 			Updated: time.Now(),
 		},
 	}
-	c.Assert(storePost(ctx, &p), IsNil)
+	storePost(ctx, &p)
 	c.Check(p.Slug, Not(IsNil))
 	c.Check(p.Slug.StringID(), Equals, "hello-world")
 
-	p, comments, err := loadPost(ctx, "hello-world")
-	c.Assert(err, IsNil)
+	p, comments := loadPost(ctx, "hello-world")
 	c.Check(p.Title, Equals, "Hello World")
 	c.Check(len(comments), Equals, 0)
 }

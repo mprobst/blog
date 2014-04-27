@@ -1,0 +1,10 @@
+{{define "content"}}
+<article>
+  <h2>{{.Message}}</h2>
+  {{if .IncludeDetails}}
+    <pre>{{.Details}}</pre>
+  {{else}}
+    <p>That is all we know.</p>
+  {{end}}
+</article>
+{{end}}

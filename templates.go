@@ -67,15 +67,15 @@ func init() {
 	}
 }
 
-func renderPost(wr io.Writer, post Post, comments []Comment) error {
-	return renderTemplate(wr, templates["tmpl/post_single.html"], "layout", map[string]interface{}{
+func renderPost(wr io.Writer, post Post, comments []Comment) {
+	renderTemplate(wr, templates["tmpl/post_single.html"], "layout", map[string]interface{}{
 		"baseUri":  baseUri,
 		"Post":     &post,
 		"Comments": comments,
 	})
 }
 
-func renderPosts(wr io.Writer, posts []Post, page, pageCount int) error {
+func renderPosts(wr io.Writer, posts []Post, page, pageCount int) {
 	var previous, next int
 	if page > 1 {
 		previous = page - 1
@@ -91,7 +91,7 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) error {
 	pages := make([]bool, pageCount+1)
 	pages[page] = true
 
-	return renderTemplate(wr, templates["tmpl/post_page.html"], "layout", map[string]interface{}{
+	renderTemplate(wr, templates["tmpl/post_page.html"], "layout", map[string]interface{}{
 		"baseUri": baseUri,
 		"Posts":   posts,
 		"Pagination": map[string]interface{}{
@@ -102,20 +102,29 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) error {
 	})
 }
 
-func renderEditPost(wr io.Writer, post *Post) error {
-	return renderTemplate(wr, templates["tmpl/post_edit.html"], "layout", map[string]interface{}{
+func renderEditPost(wr io.Writer, post *Post) {
+	renderTemplate(wr, templates["tmpl/post_edit.html"], "layout", map[string]interface{}{
 		"baseUri": baseUri,
 		"Post":    post,
 	})
 }
 
-func renderTemplate(wr io.Writer, t *template.Template, name string, data map[string]interface{}) error {
+func renderError(wr io.Writer, withDetail bool, msg string, details string) {
+	renderTemplate(wr, templates["tmpl/error.html"], "layout", map[string]interface{}{
+		"baseUri":        baseUri,
+		"Message":        msg,
+		"IncludeDetails": withDetail,
+		"Details":        details,
+	})
+}
+
+func renderTemplate(wr io.Writer, t *template.Template, name string, data map[string]interface{}) {
 	// Buffer the rendered output so that potential errors don't end up mixed with the output
 	var buffer bytes.Buffer
-	var err error
-	if err = t.ExecuteTemplate(&buffer, name, data); err != nil {
-		return err
+	if err := t.ExecuteTemplate(&buffer, name, data); err != nil {
+		panic(err)
 	}
-	_, err = buffer.WriteTo(wr)
-	return err
+	if _, err := buffer.WriteTo(wr); err != nil {
+		panic(err)
+	}
 }
