@@ -39,14 +39,14 @@ func init() {
 	})
 
 	routeIndex = s.HandleFunc("/", appEngineHandler(indexPage))
-	routeIndexAt = s.HandleFunc("/{page:\\d*}", appEngineHandler(indexPage))
+	routeIndexAt = s.HandleFunc("/{page:\\d*}/", appEngineHandler(indexPage))
 	routeShowPost = s.HandleFunc(postPrefix, appEngineHandler(showPost))
 	routeNewPost = s.HandleFunc("/new", appEngineHandler(editPost))
 	routeEditPost = s.HandleFunc(postPrefix+"edit", appEngineHandler(editPost))
 
 	http.Handle("/", router)
 
-	log.Println("Routes set up.")
+	log.Println("Routes set up, ready to serve.")
 }
 
 func appEngineHandler(f func(c appengine.Context, rw http.ResponseWriter, r *http.Request) error) func(http.ResponseWriter, *http.Request) {
