@@ -112,15 +112,22 @@ func loadPost(c appengine.Context, slugString string) (Post, []Comment, error) {
 	return p, comments, err
 }
 
-func getPageCount(c appengine.Context) (int, error) {
+// Counts posts and caches the result.
+func getPageCount(c appengine.Context) int {
 	item, err := memcache.Get(c, postCountCacheKey)
-	if err == memcache.ErrCacheMiss {
-		c.Infof("Counting posts")
-		count, err := datastore.NewQuery(PostEntity).Count(c)
-		if err != nil {
-			return -1, err
+	var count int
+	if err == nil {
+		if value, cnt := binary.Varint(item.Value); cnt > 0 {
+			count = int(value)
+		} else {
+			panic(errors.New("Cannot decode cached count"))
 		}
-		c.Infof("Got %v posts", count)
+	} else if err == memcache.ErrCacheMiss {
+		count, err = datastore.NewQuery(PostEntity).Count(c)
+		if err != nil {
+			panic(err)
+		}
+		c.Infof("Counted %v posts", count)
 		buf := make([]byte, binary.MaxVarintLen64)
 		binary.PutVarint(buf, int64(count))
 		item := &memcache.Item{
@@ -128,21 +135,16 @@ func getPageCount(c appengine.Context) (int, error) {
 			Value: buf,
 		}
 		memcache.Set(c, item) // ignore err
-		return (count / postsPerPage) + 1, nil
 	} else if err != nil {
-		return -1, err
-	} else {
-		if value, cnt := binary.Varint(item.Value); cnt > 0 {
-			return (int(value) / postsPerPage) + 1, nil
-		} else {
-			return -1, errors.New("Cannot decode cached count")
-		}
+		panic(err)
 	}
+	return (count / postsPerPage) + 1
 }
 
 func storePost(c appengine.Context, p *Post) error {
-	return datastore.RunInTransaction(c, func(c appengine.Context) error {
-		newPost := p.Slug == nil
+	newPost := p.Slug == nil
+
+	err := datastore.RunInTransaction(c, func(c appengine.Context) error {
 		if newPost {
 			slug, err := slugify(c, p)
 			if err != nil {
@@ -153,13 +155,19 @@ func storePost(c appengine.Context, p *Post) error {
 		if _, err := datastore.Put(c, p.Slug, p); err != nil {
 			return err
 		}
-		if newPost {
-			c.Infof("Resetting blog_page_count")
-			memcache.Delete(c, postCountCacheKey)
-			getPageCount(c)
-		}
 		return nil
 	}, &datastore.TransactionOptions{XG: true})
+
+	if err != nil {
+		return err
+	}
+
+	if newPost {
+		c.Infof("Resetting blog_page_count")
+		memcache.Delete(c, postCountCacheKey)
+		getPageCount(c)
+	}
+	return nil
 }
 
 var (
@@ -167,7 +175,7 @@ var (
 	dashesRE = regexp.MustCompile("-{2,}")
 )
 
-func TitleToSlug(title string) string {
+func titleToSlug(title string) string {
 	slug := title
 	slug = strings.Replace(slug, " ", "-", -1)
 	slug = slugRE.ReplaceAllLiteralString(slug, "")
@@ -179,7 +187,7 @@ func slugify(c appengine.Context, p *Post) (*datastore.Key, error) {
 	if p.Slug != nil {
 		return p.Slug, nil
 	}
-	slug := TitleToSlug(p.Title)
+	slug := titleToSlug(p.Title)
 	newSlug := slug
 	dummy := Post{}
 	for i := 1; i <= 5; i++ {

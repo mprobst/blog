@@ -76,10 +76,7 @@ func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		return err
 	}
-	count, err := getPageCount(c)
-	if err != nil {
-		return err
-	}
+	count := getPageCount(c)
 	return renderPosts(w, posts, page, count)
 }
 
