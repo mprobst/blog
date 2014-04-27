@@ -68,7 +68,7 @@ const (
 	postCountCacheKey = "blog_post_count"
 )
 
-func getPosts(c appengine.Context, page int) ([]Post, error) {
+func loadPosts(c appengine.Context, page int) ([]Post, error) {
 	q := datastore.NewQuery(PostEntity).
 		Order("-created").
 		Offset((page - 1) * postsPerPage).
@@ -84,7 +84,12 @@ func getPosts(c appengine.Context, page int) ([]Post, error) {
 	return posts, err
 }
 
-func getPost(c appengine.Context, slug *datastore.Key) (Post, []Comment, error) {
+func createSlug(c appengine.Context, slugString string) *datastore.Key {
+	return datastore.NewKey(c, PostEntity, slugString, 0, nil)
+}
+
+func loadPost(c appengine.Context, slugString string) (Post, []Comment, error) {
+	slug := createSlug(c, slugString)
 	p := Post{Slug: slug}
 	comments := make([]Comment, 0)
 

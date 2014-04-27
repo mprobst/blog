@@ -72,7 +72,7 @@ func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		page = 1
 	}
-	posts, err := getPosts(c, page)
+	posts, err := loadPosts(c, page)
 	if err != nil {
 		return err
 	}
@@ -89,15 +89,11 @@ func showPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error
 	if !ok {
 		return datastore.ErrNoSuchEntity // hack, hack
 	}
-	post, comments, err := getPost(c, getSlug(c, slug))
+	post, comments, err := loadPost(c, slug)
 	if err != nil {
 		return err
 	}
 	return renderPost(w, post, comments)
-}
-
-func getSlug(c appengine.Context, slug string) *datastore.Key {
-	return datastore.NewKey(c, PostEntity, slug, 0, nil)
 }
 
 var decoder = schema.NewDecoder()
@@ -111,9 +107,8 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) error
 
 	vars := mux.Vars(r)
 	if slug, ok := vars["slug"]; ok {
-		p.Slug = getSlug(c, slug)
 		var err error
-		p, _, err = getPost(c, p.Slug)
+		p, _, err = loadPost(c, slug)
 		if err != nil {
 			return err
 		}
