@@ -9,6 +9,7 @@ builtins:
 handlers:
 - url: /blog/img
   static_dir: static/img
+  expiration: "30d"
 - url: /blog/js
   static_dir: static/js
 - url: /blog/css
