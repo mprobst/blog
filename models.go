@@ -131,8 +131,9 @@ func getPageCount(c appengine.Context) int {
 		buf := make([]byte, binary.MaxVarintLen64)
 		binary.PutVarint(buf, int64(count))
 		item := &memcache.Item{
-			Key:   postCountCacheKey,
-			Value: buf,
+			Key:        postCountCacheKey,
+			Value:      buf,
+			Expiration: 1 * time.Hour,
 		}
 		memcache.Set(c, item) // ignore err
 	} else if err != nil {
@@ -165,7 +166,6 @@ func storePost(c appengine.Context, p *Post) error {
 	if newPost {
 		c.Infof("Resetting blog_page_count")
 		memcache.Delete(c, postCountCacheKey)
-		getPageCount(c)
 	}
 	return nil
 }
