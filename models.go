@@ -106,11 +106,10 @@ func loadPost(c appengine.Context, slugString string) (Post, []Comment) {
 		panic(datastore.ErrNoSuchEntity)
 	}
 
-	_, error := datastore.NewQuery(CommentEntity).
+	q := datastore.NewQuery(CommentEntity).
 		Ancestor(slug).
-		Order("created").
-		GetAll(c, &comments)
-	if error != nil {
+		Order("created")
+	if _, err := q.GetAll(c, &comments); err != nil {
 		panic(err)
 	}
 	return p, comments
