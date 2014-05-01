@@ -113,7 +113,7 @@ func renderTemplate(wr io.Writer, t *template.Template, data map[string]interfac
 	data["baseUri"] = "/blog/"
 	// Buffer the rendered output so that potential errors don't end up mixed with the output
 	var buffer bytes.Buffer
-	if err := t.ExecuteTemplate(&buffer, "layout", data); err != nil {
+	if err := t.ExecuteTemplate(&buffer, "main", data); err != nil {
 		panic(err)
 	}
 	if _, err := buffer.WriteTo(wr); err != nil {
