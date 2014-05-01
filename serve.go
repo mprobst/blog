@@ -125,7 +125,12 @@ var decoder = schema.NewDecoder()
 
 func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 	if !user.IsAdmin(c) {
-		panic("Unauthorized")
+		url, err := user.LoginURL(c, r.RequestURI)
+		if err != nil {
+			panic(err)
+		}
+		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+		return
 	}
 
 	p := Post{}
