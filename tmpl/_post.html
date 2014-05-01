@@ -5,7 +5,7 @@
     {{ .Created | dateTime }}
     &mdash;
     <a href="{{ .Url }}#comments_area" class="comments_link">
-      {{ .NumComments }} comment{{if not .NumComments}}s{{end}}
+      {{ .NumComments }} comment{{if not (eq .NumComments 1)}}s{{end}}
     </a>
     <span class="admin_link"> &mdash; <a href='{{ .EditUrl }}'>Edit</a></span>
   </p>
