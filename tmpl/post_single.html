@@ -5,7 +5,7 @@
     <div class="comments">
     {{range $index, $comment := .Comments}}
       <div class="comment" id="comment-{{ $index }}">
-        {{ $comment.Text | markdown }}
+        {{ $comment.Text | markdownComment }}
         <div class="comment_byline">{{ $comment.Created | dateTime }} &mdash;
           {{if $comment.AuthorUrl}}
           <a href="{{ $comment.AuthorUrl }}" rel="nofollow">{{ $comment.Author }}</a>

@@ -20,10 +20,35 @@ var funcMap = template.FuncMap{
 		return t.Format(time.RFC3339)
 	},
 	"markdown": func(s string) template.HTML {
-		// MarkdownCommon sanitizes HTML.
-		formatted := string(blackfriday.MarkdownCommon([]byte(s)))
-		return template.HTML(formatted)
+		return markdown(s, 0)
 	},
+	"markdownComment": func(s string) template.HTML {
+		// Essentially just adds rel=nofollow over regular markdown.
+		return markdown(s, blackfriday.HTML_NOFOLLOW_LINKS)
+	},
+}
+
+func markdown(s string, htmlFlags int) template.HTML {
+	htmlFlags |= blackfriday.HTML_USE_XHTML
+	htmlFlags |= blackfriday.HTML_USE_SMARTYPANTS
+	htmlFlags |= blackfriday.HTML_SMARTYPANTS_FRACTIONS
+	htmlFlags |= blackfriday.HTML_SMARTYPANTS_LATEX_DASHES
+	htmlFlags |= blackfriday.HTML_SANITIZE_OUTPUT
+	htmlFlags |= blackfriday.HTML_NOFOLLOW_LINKS
+
+	renderer := blackfriday.HtmlRenderer(htmlFlags, "", "")
+
+	// Set up the parser
+	extensions := 0
+	extensions |= blackfriday.EXTENSION_NO_INTRA_EMPHASIS
+	extensions |= blackfriday.EXTENSION_TABLES
+	extensions |= blackfriday.EXTENSION_FENCED_CODE
+	extensions |= blackfriday.EXTENSION_AUTOLINK
+	extensions |= blackfriday.EXTENSION_STRIKETHROUGH
+	extensions |= blackfriday.EXTENSION_SPACE_HEADERS
+	extensions |= blackfriday.EXTENSION_HEADER_IDS
+
+	return template.HTML(string(blackfriday.Markdown([]byte(s), renderer, extensions)))
 }
 
 var templates map[string]*template.Template
