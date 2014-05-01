@@ -16,6 +16,9 @@ var funcMap = template.FuncMap{
 	"dateTime": func(t time.Time) string {
 		return t.Format("Monday, January 2, 2006, 15:04")
 	},
+	"isoDateTime": func(t time.Time) string {
+		return t.Format(time.RFC3339)
+	},
 	"markdown": func(s string) template.HTML {
 		// MarkdownCommon sanitizes HTML.
 		formatted := string(blackfriday.MarkdownCommon([]byte(s)))
@@ -24,6 +27,7 @@ var funcMap = template.FuncMap{
 }
 
 var templates map[string]*template.Template
+var feedTemplate *template.Template
 
 func init() {
 	templates = make(map[string]*template.Template)
@@ -60,6 +64,9 @@ func init() {
 		}
 		templates[tmpl] = current
 	}
+
+	feedTemplate = template.Must(
+		template.New("tmpl/feed.xml").Funcs(funcMap).ParseFiles("tmpl/feed.xml"))
 }
 
 func renderPost(wr io.Writer, post Post, comments []Comment) {
@@ -69,7 +76,12 @@ func renderPost(wr io.Writer, post Post, comments []Comment) {
 	})
 }
 
-func renderPosts(wr io.Writer, posts []Post, page, pageCount int) {
+type Pagination struct {
+	Previous, Next, Page, PageCount int
+	Pages                           []bool
+}
+
+func createPagination(page, pageCount int) Pagination {
 	var previous, next int
 	if page > 1 {
 		previous = page - 1
@@ -85,13 +97,26 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) {
 	pages := make([]bool, pageCount+1)
 	pages[page] = true
 
+	return Pagination{
+		Previous:  previous,
+		Next:      next,
+		Page:      page,
+		Pages:     pages,
+		PageCount: pageCount,
+	}
+}
+
+func renderPosts(wr io.Writer, posts []Post, page, pageCount int) {
 	renderTemplate(wr, templates["tmpl/post_page.html"], map[string]interface{}{
-		"Posts": posts,
-		"Pagination": map[string]interface{}{
-			"Previous": previous,
-			"Next":     next,
-			"Pages":    pages,
-		},
+		"Posts":      posts,
+		"Pagination": createPagination(page, pageCount),
+	})
+}
+
+func renderPostsFeed(wr io.Writer, posts []Post, page, pageCount int) {
+	renderTemplate(wr, feedTemplate, map[string]interface{}{
+		"Posts":      posts,
+		"Pagination": createPagination(page, pageCount),
 	})
 }
 

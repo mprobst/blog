@@ -15,11 +15,7 @@ import (
 )
 
 var router = mux.NewRouter()
-var routeIndex,
-	routeIndexAt,
-	routeNewPost,
-	routeAuthCheck,
-	routeShowPost,
+var routeShowPost,
 	routeEditPost *mux.Route
 
 const postPrefix = "/{ymd:\\d{4}/\\d{2}/\\d{2}}/{slug}/"
@@ -30,7 +26,7 @@ func init() {
 	s := router.PathPrefix("/blog").Subrouter()
 	s.StrictSlash(true)
 
-	routeAuthCheck = s.HandleFunc("/auth_check", func(rw http.ResponseWriter, req *http.Request) {
+	s.HandleFunc("/auth_check", func(rw http.ResponseWriter, req *http.Request) {
 		c := appengine.NewContext(req)
 		if user.IsAdmin(c) {
 			http.Error(rw, "OK", http.StatusOK)
@@ -39,10 +35,12 @@ func init() {
 		}
 	})
 
-	routeIndex = s.HandleFunc("/", appEngineHandler(indexPage))
-	routeIndexAt = s.HandleFunc("/{page:\\d*}/", appEngineHandler(indexPage))
+	s.HandleFunc("/", appEngineHandler(indexPage))
+	s.HandleFunc("/{page:\\d*}/", appEngineHandler(indexPage))
+	s.HandleFunc("/feed", http.RedirectHandler("/feed/1", http.StatusMovedPermanently))
+	s.HandleFunc("/feed/{page:\\d*}", appEngineHandler(feed))
 	routeShowPost = s.HandleFunc(postPrefix, appEngineHandler(showPost))
-	routeNewPost = s.HandleFunc("/new", appEngineHandler(editPost))
+	s.HandleFunc("/new", appEngineHandler(editPost))
 	routeEditPost = s.HandleFunc(postPrefix+"edit", appEngineHandler(editPost))
 
 	http.Handle("/", router)
@@ -83,14 +81,24 @@ func handleError(c appengine.Context, rw http.ResponseWriter, obj interface{}, s
 	renderError(rw, user.IsAdmin(c), msg, details)
 }
 
-func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) {
+func loadPostsPage(c appengine.Context, r *http.Request) ([]Post, int, int) {
 	page, err := strconv.Atoi(mux.Vars(r)["page"])
 	if err != nil {
 		page = 1
 	}
 	posts := loadPosts(c, page)
 	count := getPageCount(c)
+	return posts, page, count
+}
+
+func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) {
+	posts, page, count := loadPostsPage(c, r)
 	renderPosts(w, posts, page, count)
+}
+
+func feed(c appengine.Context, w http.ResponseWriter, r *http.Request) {
+	posts, page, count := loadPostsPage(c, r)
+	renderPostsFeed(w, posts, page, count)
 }
 
 func showPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
