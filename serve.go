@@ -3,6 +3,7 @@ package blog
 import (
 	"appengine"
 	"appengine/datastore"
+	"appengine/mail"
 	"appengine/user"
 	"fmt"
 	"github.com/gorilla/mux"
@@ -71,11 +72,20 @@ func handleError(c appengine.Context, rw http.ResponseWriter, obj interface{}, s
 		code = http.StatusNotFound
 		msg = "Not found"
 	} else if err, ok := obj.(error); ok {
-		c.Criticalf("Error: %+v\n%s", obj, stack)
+		c.Errorf("Error: %+v\n%s", obj, stack)
 		details = fmt.Sprintf("Error: %s\n%s", err.Error(), details)
 	} else {
-		c.Criticalf("Error: %+v\n%s", obj, stack)
+		c.Errorf("Error: %+v\n%s", obj, stack)
 		details = fmt.Sprintf("Error: %+v\n%s", obj, details)
+	}
+	mailMsg := &mail.Message{
+		Sender:  "blog@probst.io",
+		To:      []string{"martin@probst.io"},
+		Subject: "Blog Server Error",
+		Body:    details,
+	}
+	if err := mail.Send(c, mailMsg); err != nil {
+		c.Errorf("Failed to send error report email: %v", err)
 	}
 	rw.WriteHeader(code)
 	renderError(rw, user.IsAdmin(c), msg, details)
