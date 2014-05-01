@@ -2,7 +2,7 @@ package blog
 
 import (
 	"bytes"
-	"github.com/russross/blackfriday"
+	"github.com/mprobst/blackfriday"
 	"html/template"
 	"io"
 	"log"
