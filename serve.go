@@ -72,7 +72,7 @@ func handleError(c appengine.Context, rw http.ResponseWriter, obj interface{}, s
 		msg = "Not found"
 	} else if err, ok := obj.(error); ok {
 		c.Criticalf("Error: %+v\n%s", obj, stack)
-		details = fmt.Sprintf("Error: %s", err.Error())
+		details = fmt.Sprintf("Error: %s\n%s", err.Error(), details)
 	} else {
 		c.Criticalf("Error: %+v\n%s", obj, stack)
 		details = fmt.Sprintf("Error: %+v\n%s", obj, details)
