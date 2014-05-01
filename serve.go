@@ -38,7 +38,7 @@ func init() {
 
 	s.HandleFunc("/", appEngineHandler(indexPage))
 	s.HandleFunc("/{page:\\d*}/", appEngineHandler(indexPage))
-	s.Handle("/feed", http.RedirectHandler("/feed/1", http.StatusMovedPermanently))
+	s.Handle("/feed", http.RedirectHandler("/blog/feed/1", http.StatusMovedPermanently))
 	s.HandleFunc("/feed/{page:\\d*}", appEngineHandler(feed))
 	routeShowPost = s.HandleFunc(postPrefix, appEngineHandler(showPost))
 	s.HandleFunc("/new", appEngineHandler(editPost))
