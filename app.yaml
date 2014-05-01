@@ -18,4 +18,3 @@ handlers:
   static_dir: static/css
 - url: /.*
   script: _go_app
-  login: admin
