@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-// var parser = markdown.NewParser(&markdown.Extensions{})
-
 var funcMap = template.FuncMap{
 	"dateTime": func(t time.Time) string {
 		return t.Format("Monday, January 2, 2006, 15:04")
