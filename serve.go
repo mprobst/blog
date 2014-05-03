@@ -79,9 +79,9 @@ func handleError(c appengine.Context, rw http.ResponseWriter, obj interface{}, s
 		details = fmt.Sprintf("Error: %+v\n%s", obj, details)
 	}
 	mailMsg := &mail.Message{
-		Sender:  "blog@probst.io",
+		Sender:  "martin@probst.io",
 		To:      []string{"martin@probst.io"},
-		Subject: "Blog Server Error",
+		Subject: fmt.Sprintf("[blog] Server Error - %s", msg),
 		Body:    details,
 	}
 	if err := mail.Send(c, mailMsg); err != nil {
