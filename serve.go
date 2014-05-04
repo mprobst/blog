@@ -101,13 +101,11 @@ func handleError(c appengine.Context, rw http.ResponseWriter, obj interface{}, s
 
 func redirectToDomain(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
 	host := r.Host
-	url := r.URL
-	url.Host = "probst.io"
-	url.Scheme = "http"
+	url := fmt.Sprintf("http://probst.io%s", r.RequestURI)
 	c.Infof("Redirecting request to %s to %s", host, url)
 	// Safe to echo the user's request as we preped http://probst.io to it and it's
 	// properly escaped in Redirect.
-	http.Redirect(rw, r, url.String(), http.StatusMovedPermanently)
+	http.Redirect(rw, r, url, http.StatusMovedPermanently)
 }
 
 func loadPostsPage(c appengine.Context, r *http.Request) ([]Post, int, int) {
