@@ -184,7 +184,7 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" && action == "Post" {
 		storePost(c, &p)
 		url := p.Route(routeShowPost)
-		http.Redirect(w, r, url.String(), http.StatusFound)
+		http.Redirect(w, r, url.String(), http.StatusSeeOther)
 		return
 	}
 
