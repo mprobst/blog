@@ -66,18 +66,18 @@ func appEngineHandler(f func(c appengine.Context, rw http.ResponseWriter, r *htt
 	return func(rw http.ResponseWriter, r *http.Request) {
 		c := appengine.NewContext(r)
 		defer func() {
-			if r := recover(); r != nil {
+			if recovered := recover(); recovered != nil {
 				stack := make([]byte, 4*(2<<10))
 				count := runtime.Stack(stack, false)
 				stack = stack[:count]
-				handleError(c, rw, r, stack)
+				handleError(c, rw, r, recovered, stack)
 			}
 		}()
 		f(c, rw, r)
 	}
 }
 
-func handleError(c appengine.Context, rw http.ResponseWriter, obj interface{}, stack []byte) {
+func handleError(c appengine.Context, rw http.ResponseWriter, r *http.Request, obj interface{}, stack []byte) {
 	code := http.StatusInternalServerError
 	msg := "An internal error occurred"
 	details := fmt.Sprintf("%s", stack)
@@ -95,7 +95,7 @@ func handleError(c appengine.Context, rw http.ResponseWriter, obj interface{}, s
 		Sender:  "martin@probst.io",
 		To:      []string{"martin@probst.io"},
 		Subject: fmt.Sprintf("[blog] Server Error - %s", msg),
-		Body:    details,
+		Body:    fmt.Sprintf("%s http://probst.io%s\n\n%s", r.Method, r.RequestURI, details),
 	}
 	if err := mail.Send(c, mailMsg); err != nil {
 		c.Errorf("Failed to send error report email: %v", err)
