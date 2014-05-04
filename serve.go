@@ -20,6 +20,12 @@ var routeShowPost,
 	routeEditPost *mux.Route
 
 func init() {
+	// Use app code to render all 404s.
+	router.NotFoundHandler = appEngineHandler(
+		func(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
+			panic(datastore.ErrNoSuchEntity)
+		})
+
 	// Redirects.
 	redirect := appEngineHandler(redirectToDomain)
 	router.Host("www.martin-probst.com").Handler(redirect)
@@ -27,10 +33,9 @@ func init() {
 	router.Host("www.probst.io").Handler(redirect)
 	router.Handle("/", http.RedirectHandler("/blog/", http.StatusSeeOther))
 
-	router.NotFoundHandler = appEngineHandler(
-		func(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
-			panic(datastore.ErrNoSuchEntity)
-		})
+	router.HandleFunc("/robots.txt", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Write([]byte("# All OK.\n"))
+	})
 
 	// Blog routes
 	s := router.PathPrefix("/blog").Subrouter()
