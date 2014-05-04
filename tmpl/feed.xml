@@ -23,7 +23,7 @@
 {{define "entry"}}
 <entry xmlns="http://www.w3.org/2005/Atom">
   <title>{{ .Title }}</title>
-  <link rel="alternate" href="{.Url}" type="text/html"/>
+  <link rel="alternate" href="{{.Url}}" type="text/html"/>
   <id>{{.Url}}</id>
   <updated>{{ .Updated | isoDateTime }}</updated>
   <published>{{ .Created | isoDateTime }}</published>
