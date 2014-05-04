@@ -64,10 +64,11 @@ type Comment struct {
 }
 
 const (
-	PostEntity        = "blog_post"
-	CommentEntity     = "blog_comment"
-	postsPerPage      = 10
-	postCountCacheKey = "blog_post_count"
+	PostEntity          = "blog_post"
+	CommentEntity       = "blog_comment"
+	postsPerPage        = 10
+	postCountCacheKey   = "blog_post_count"
+	lastUpdatedCacheKey = "blog_last_updated"
 )
 
 func loadPosts(c appengine.Context, page int) []Post {
@@ -75,9 +76,7 @@ func loadPosts(c appengine.Context, page int) []Post {
 		Order("-created").
 		Offset((page - 1) * postsPerPage).
 		Limit(postsPerPage)
-	if !user.IsAdmin(c) {
-		q = q.Filter("draft =", false)
-	}
+	q = filterDraft(c, q)
 	posts := make([]Post, 0, postsPerPage)
 	keys, err := q.GetAll(c, &posts)
 	if err != nil {
@@ -87,6 +86,37 @@ func loadPosts(c appengine.Context, page int) []Post {
 		posts[i].Slug = keys[i]
 	}
 	return posts
+}
+
+func pageLastUpdated(c appengine.Context) time.Time {
+	var lastUpdated time.Time
+	_, err := memcache.Gob.Get(c, lastUpdatedCacheKey, &lastUpdated)
+	if err == nil {
+		return lastUpdated
+	}
+	q := datastore.NewQuery(PostEntity).
+		Order("-created").
+		Limit(1)
+	q = filterDraft(c, q)
+	posts := make([]Post, 0, 1)
+	if _, err := q.GetAll(c, &posts); err != nil {
+		panic(err)
+	}
+	lastUpdated = posts[0].Created
+	// Ok to fail.
+	memcache.Gob.Set(c, &memcache.Item{
+		Key:    lastUpdatedCacheKey,
+		Object: lastUpdated,
+	})
+	c.Infof("Last Updated %s", lastUpdated)
+	return lastUpdated
+}
+
+func filterDraft(c appengine.Context, q *datastore.Query) *datastore.Query {
+	if !user.IsAdmin(c) {
+		return q.Filter("draft =", false)
+	}
+	return q
 }
 
 func createSlug(c appengine.Context, slugString string) *datastore.Key {

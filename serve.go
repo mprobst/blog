@@ -130,7 +130,8 @@ func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 
 func feed(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 	posts, page, count := loadPostsPage(c, r)
-	renderPostsFeed(w, posts, page, count)
+	lastUpdated := pageLastUpdated(c)
+	renderPostsFeed(w, posts, lastUpdated, page, count)
 }
 
 func showPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {

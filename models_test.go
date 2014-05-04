@@ -11,7 +11,19 @@ import (
 
 func TestModels(t *testing.T) { TestingT(t) }
 
-type ModelsTest struct{}
+type ModelsTest struct {
+	ctx aetest.Context
+}
+
+func (m *ModelsTest) SetUpTest(c *C) {
+	ctx, err := aetest.NewContext(nil)
+	c.Assert(err, IsNil)
+	m.ctx = ctx
+}
+
+func (m *ModelsTest) TearDownTest(c *C) {
+	m.ctx.Close()
+}
 
 var _ = Suite(&ModelsTest{})
 
@@ -21,36 +33,24 @@ func (m *ModelsTest) TestSlugCreation(c *C) {
 		titleToSlug("Hello World     123 -- omg"), Equals, "hello-world-123-omg")
 }
 
-func assertNewContext(c *C) aetest.Context {
-	ctx, err := aetest.NewContext(nil)
-	c.Assert(err, IsNil)
-	return ctx
-}
-
 func (m *ModelsTest) TestPageCount(c *C) {
-	ctx := assertNewContext(c)
-	defer ctx.Close()
-
-	c.Check(getPageCount(ctx), Equals, 1)
-	ctx.Infof("Checking memcached version")
-	c.Check(getPageCount(ctx), Equals, 1)
+	c.Check(getPageCount(m.ctx), Equals, 1)
+	m.ctx.Infof("Checking memcached version")
+	c.Check(getPageCount(m.ctx), Equals, 1)
 
 	for i := 0; i < 11; i++ {
 		p := Post{Title: fmt.Sprintf("t%d", i)}
-		storePost(ctx, &p)
+		storePost(m.ctx, &p)
 	}
 	// Wait for writes to apply - no way to actually flush datastore for test.
 	time.Sleep(100 * time.Millisecond)
 
 	// Invalidate cache.
-	memcache.Delete(ctx, postCountCacheKey)
-	c.Check(getPageCount(ctx), Equals, 2)
+	memcache.Delete(m.ctx, postCountCacheKey)
+	c.Check(getPageCount(m.ctx), Equals, 2)
 }
 
 func (m *ModelsTest) TestLoadStorePost(c *C) {
-	ctx := assertNewContext(c)
-	defer ctx.Close()
-
 	p := Post{
 		Title: "Hello World",
 		Text:  "Test content",
@@ -59,11 +59,21 @@ func (m *ModelsTest) TestLoadStorePost(c *C) {
 			Updated: time.Now(),
 		},
 	}
-	storePost(ctx, &p)
+	storePost(m.ctx, &p)
 	c.Check(p.Slug, Not(IsNil))
 	c.Check(p.Slug.StringID(), Equals, "hello-world")
 
-	p, comments := loadPost(ctx, "hello-world")
+	p, comments := loadPost(m.ctx, "hello-world")
 	c.Check(p.Title, Equals, "Hello World")
 	c.Check(len(comments), Equals, 0)
+}
+
+func (m *ModelsTest) TestPageLastUpdated(c *C) {
+	createdTime := time.Now().Truncate(1 * time.Second)
+	p := Post{Timestamps: Timestamps{Created: createdTime}}
+	storePost(m.ctx, &p)
+	// Wait for writes to apply - no way to actually flush datastore for test.
+	time.Sleep(100 * time.Millisecond)
+	lastUpdated := pageLastUpdated(m.ctx)
+	c.Check(lastUpdated, Equals, createdTime)
 }

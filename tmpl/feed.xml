@@ -3,17 +3,22 @@
   <title>Martin Probst's blog</title>
   <id>{{$.baseUri}}feed</id>
   <icon>{{.baseUri}}img/favicon.png</icon>
+
   <link rel="first" href="{{$.baseUri}}feed/1"/>
   <link rel="last" href="{{$.baseUri}}feed/{{.Pagination.PageCount}}"/>
   <link rel="self" href="{{$.baseUri}}feed/{{.Pagination.Page}}"/>
   <link rel="alternate" href="{{$.baseUri}}{{.Pagination.Page}}" type="text/html"/>
+
   {{if .Pagination.Previous}}
     <link rel="previous" href="{{$.baseUri}}feed/{{.Pagination.Previous}}"/>
   {{end}}
   {{if .Pagination.Next}}
     <link rel="next" href="{{$.baseUri}}feed/{{.Pagination.Next}}"/>
   {{end}}
+
   <author><name>Martin Probst</name></author>
+  <updated>{{ .Updated | isoDateTime }}</updated>
+
   {{range .Posts}}
     {{template "entry" .}}
   {{end}}

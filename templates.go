@@ -141,9 +141,10 @@ func renderPosts(wr io.Writer, posts []Post, page, pageCount int) {
 	})
 }
 
-func renderPostsFeed(wr io.Writer, posts []Post, page, pageCount int) {
+func renderPostsFeed(wr io.Writer, posts []Post, lastUpdated time.Time, page, pageCount int) {
 	renderTemplate(wr, feedTemplate, map[string]interface{}{
 		"Posts":      posts,
+		"Updated":    lastUpdated,
 		"Pagination": createPagination(page, pageCount),
 	})
 }
