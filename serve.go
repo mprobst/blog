@@ -19,19 +19,20 @@ var router = mux.NewRouter()
 var routeShowPost,
 	routeEditPost *mux.Route
 
-const postPrefix = "/{ymd:\\d{4}/\\d{1,2}/\\d{1,2}}/{slug}/"
-
 func init() {
+	// Redirects.
 	redirect := appEngineHandler(redirectToDomain)
 	router.Host("www.martin-probst.com").Handler(redirect)
 	router.Host("martin-probst.com").Handler(redirect)
 	router.Host("www.probst.io").Handler(redirect)
 	router.Handle("/", http.RedirectHandler("/blog/", http.StatusSeeOther))
+
 	router.NotFoundHandler = appEngineHandler(
 		func(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
 			panic(datastore.ErrNoSuchEntity)
 		})
 
+	// Blog routes
 	s := router.PathPrefix("/blog").Subrouter()
 	s.StrictSlash(true)
 
@@ -42,10 +43,13 @@ func init() {
 
 	s.HandleFunc("/", appEngineHandler(indexPage))
 	s.HandleFunc("/{page:\\d*}/", appEngineHandler(indexPage))
+
 	s.Handle("/feed", http.RedirectHandler("/blog/feed/1", http.StatusMovedPermanently))
 	s.HandleFunc("/feed/{page:\\d*}", appEngineHandler(feed))
-	routeShowPost = s.HandleFunc(postPrefix, appEngineHandler(showPost))
+
 	s.HandleFunc("/new", appEngineHandler(editPost))
+	postPrefix := "/{ymd:\\d{4}/\\d{1,2}/\\d{1,2}}/{slug}/"
+	routeShowPost = s.HandleFunc(postPrefix, appEngineHandler(showPost))
 	routeEditPost = s.HandleFunc(postPrefix+"edit", appEngineHandler(editPost))
 
 	http.Handle("/", router)
