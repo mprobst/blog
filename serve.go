@@ -23,6 +23,10 @@ const postPrefix = "/{ymd:\\d{4}/\\d{2}/\\d{2}}/{slug}/"
 
 func init() {
 	router.Handle("/", http.RedirectHandler("/blog/", http.StatusSeeOther))
+	router.NotFoundHandler = appEngineHandler(
+		func(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
+			panic(datastore.ErrNoSuchEntity)
+		})
 
 	s := router.PathPrefix("/blog").Subrouter()
 	s.StrictSlash(true)
@@ -49,7 +53,7 @@ func init() {
 	log.Println("Routes set up, ready to serve.")
 }
 
-func appEngineHandler(f func(c appengine.Context, rw http.ResponseWriter, r *http.Request)) func(http.ResponseWriter, *http.Request) {
+func appEngineHandler(f func(c appengine.Context, rw http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		c := appengine.NewContext(r)
 		defer func() {
