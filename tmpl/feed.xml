@@ -28,6 +28,6 @@
   <updated>{{ .Updated | isoDateTime }}</updated>
   <published>{{ .Created | isoDateTime }}</published>
   <author><name>Martin Probst</name></author>
-  <content type="html">{{ .Text | markdown }}</content>
+  <content type="html">{{ .Text | markdown | escapeHtml}}</content>
 </entry>
 {{end}}

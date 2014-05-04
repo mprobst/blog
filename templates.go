@@ -26,6 +26,9 @@ var funcMap = template.FuncMap{
 		// Essentially just adds rel=nofollow over regular markdown.
 		return markdown(s, blackfriday.HTML_NOFOLLOW_LINKS)
 	},
+	"escapeHtml": func(html template.HTML) template.HTML {
+		return template.HTML(template.HTMLEscapeString(string(html)))
+	},
 }
 
 func markdown(s string, htmlFlags int) template.HTML {
