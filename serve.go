@@ -22,6 +22,10 @@ var routeShowPost,
 const postPrefix = "/{ymd:\\d{4}/\\d{2}/\\d{2}}/{slug}/"
 
 func init() {
+	redirect := appEngineHandler(redirectToDomain)
+	router.Host("www.martin-probst.com").Handler(redirect)
+	router.Host("martin-probst.com").Handler(redirect)
+	router.Host("www.probst.io").Handler(redirect)
 	router.Handle("/", http.RedirectHandler("/blog/", http.StatusSeeOther))
 	router.NotFoundHandler = appEngineHandler(
 		func(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
@@ -93,6 +97,17 @@ func handleError(c appengine.Context, rw http.ResponseWriter, obj interface{}, s
 	}
 	rw.WriteHeader(code)
 	renderError(rw, user.IsAdmin(c), msg, details)
+}
+
+func redirectToDomain(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
+	host := r.Host
+	url := r.URL
+	url.Host = "probst.io"
+	url.Scheme = "http"
+	c.Infof("Redirecting request to %s to %s", host, url)
+	// Safe to echo the user's request as we preped http://probst.io to it and it's
+	// properly escaped in Redirect.
+	http.Redirect(rw, r, url.String(), http.StatusMovedPermanently)
 }
 
 func loadPostsPage(c appengine.Context, r *http.Request) ([]Post, int, int) {
