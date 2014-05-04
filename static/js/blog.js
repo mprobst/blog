@@ -16,12 +16,13 @@ $(document).ready(function() {
 
 $.ajax({
   url: "/blog/auth_check",
-  success: function() {
-    $(".admin_link").fadeIn(1000);
+  success: function(resp) {
+    if (resp) $(".admin_link").fadeIn(1000);
   },
-  error: function() {
-    // no-op, this user isn't authenticated.
+  error: function(xhr, reason, httpReason) {
+    throw new Error(httpReason || reason || 'Auth call failed');
   },
+  dataType: 'json',
 });
 
 function toggle_comment_form() {

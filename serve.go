@@ -37,11 +37,7 @@ func init() {
 
 	s.HandleFunc("/auth_check", func(rw http.ResponseWriter, req *http.Request) {
 		c := appengine.NewContext(req)
-		if user.IsAdmin(c) {
-			http.Error(rw, "OK", http.StatusOK)
-		} else {
-			http.Error(rw, "Unauthorized", http.StatusForbidden)
-		}
+		rw.Write([]byte(strconv.FormatBool(user.IsAdmin(c))))
 	})
 
 	s.HandleFunc("/", appEngineHandler(indexPage))
