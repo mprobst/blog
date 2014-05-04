@@ -19,7 +19,7 @@ var router = mux.NewRouter()
 var routeShowPost,
 	routeEditPost *mux.Route
 
-const postPrefix = "/{ymd:\\d{4}/\\d{2}/\\d{2}}/{slug}/"
+const postPrefix = "/{ymd:\\d{4}/\\d{1,2}/\\d{1,2}}/{slug}/"
 
 func init() {
 	redirect := appEngineHandler(redirectToDomain)
