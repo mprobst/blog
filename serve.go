@@ -91,14 +91,16 @@ func handleError(c appengine.Context, rw http.ResponseWriter, r *http.Request, o
 		c.Errorf("Error: %+v\n%s", obj, stack)
 		details = fmt.Sprintf("Error: %+v\n%s", obj, details)
 	}
-	mailMsg := &mail.Message{
-		Sender:  "martin@probst.io",
-		To:      []string{"martin@probst.io"},
-		Subject: fmt.Sprintf("[blog] Server Error - %s", msg),
-		Body:    fmt.Sprintf("%s http://probst.io%s\n\n%s", r.Method, r.RequestURI, details),
-	}
-	if err := mail.Send(c, mailMsg); err != nil {
-		c.Errorf("Failed to send error report email: %v", err)
+	if code >= 500 {
+		mailMsg := &mail.Message{
+			Sender:  "martin@probst.io",
+			To:      []string{"martin@probst.io"},
+			Subject: fmt.Sprintf("[blog] Server Error - %s", msg),
+			Body:    fmt.Sprintf("%s http://probst.io%s\n\n%s", r.Method, r.RequestURI, details),
+		}
+		if err := mail.Send(c, mailMsg); err != nil {
+			c.Errorf("Failed to send error report email: %v", err)
+		}
 	}
 	rw.WriteHeader(code)
 	renderError(rw, user.IsAdmin(c), msg, details)
