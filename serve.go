@@ -122,6 +122,9 @@ func loadPostsPage(c appengine.Context, r *http.Request) ([]Post, int, int) {
 	}
 	posts := loadPosts(c, page)
 	count := getPageCount(c)
+	if page > count {
+		panic(datastore.ErrNoSuchEntity)
+	}
 	return posts, page, count
 }
 
