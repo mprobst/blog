@@ -123,7 +123,6 @@ func createSlug(c appengine.Context, slugString string) *datastore.Key {
 
 func loadPost(c appengine.Context, slugString string) (*Post, []Comment) {
 	slug := createSlug(c, slugString)
-	comments := make([]Comment, 0)
 	p := &Post{Slug: slug}
 
 	err := datastore.Get(c, slug, p)
@@ -135,11 +134,20 @@ func loadPost(c appengine.Context, slugString string) (*Post, []Comment) {
 		panic(datastore.ErrNoSuchEntity)
 	}
 
+	comments := make([]Comment, 0, p.NumComments)
 	q := datastore.NewQuery(CommentEntity).
 		Ancestor(slug).
 		Order("created")
 	if _, err := q.GetAll(c, &comments); err != nil {
 		panic(err)
+	}
+	if actualCount := int32(len(comments)); p.NumComments != actualCount {
+		// Somehow comment count got out of sync with post.NumComments,
+		// fix the situation by storing post again.
+		c.Warningf("Post with incorrect comment count %s: %d != %d",
+			p.Url(), p.NumComments, actualCount)
+		p.NumComments = actualCount
+		storePost(c, p)
 	}
 	return p, comments
 }

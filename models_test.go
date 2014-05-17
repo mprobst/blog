@@ -2,6 +2,7 @@ package blog
 
 import (
 	"appengine/aetest"
+	"appengine/datastore"
 	"appengine/memcache"
 	"fmt"
 	. "launchpad.net/gocheck"
@@ -53,7 +54,7 @@ func (m *ModelsTest) TestPageCount(c *C) {
 var updated time.Time = time.Now().Truncate(1 * time.Second)
 var created time.Time = updated.Add(-20 * time.Minute)
 
-func testPost() *Post {
+func testPost() (*Post, []Comment) {
 	p := Post{
 		Title: "Hello World",
 		Text:  "Test content",
@@ -61,12 +62,26 @@ func testPost() *Post {
 			Created: created,
 			Updated: updated,
 		},
+		NumComments: 2,
 	}
-	return &p
+	comments := []Comment{Comment{
+		Author: "testAuthor1",
+		Text:   "textText1",
+		Timestamps: Timestamps{
+			Created: created.Add(20 * time.Minute),
+		},
+	}, Comment{
+		Author: "testAuthor2",
+		Text:   "textText2",
+		Timestamps: Timestamps{
+			Created: created.Add(40 * time.Minute),
+		},
+	}}
+	return &p, comments
 }
 
 func (m *ModelsTest) TestLoadStorePost(c *C) {
-	p := testPost()
+	p, _ := testPost()
 	storePost(m.ctx, p)
 	c.Check(p.Slug, Not(IsNil))
 	c.Check(p.Slug.StringID(), Equals, "hello-world")
@@ -77,10 +92,27 @@ func (m *ModelsTest) TestLoadStorePost(c *C) {
 }
 
 func (m *ModelsTest) TestPageLastUpdated(c *C) {
-	p := testPost()
+	p, _ := testPost()
 	storePost(m.ctx, p)
 	// Wait for writes to apply - no way to actually flush datastore for test.
 	time.Sleep(100 * time.Millisecond)
 	lastUpdated := pageLastUpdated(m.ctx)
 	c.Check(lastUpdated, Equals, updated)
+}
+
+func (m *ModelsTest) TestPageLoadFixesCommentCount(c *C) {
+	p, comments := testPost()
+	comments = append(comments, Comment{
+		Author: "testAuthor3",
+		Text:   "textText3",
+	})
+	c.Check(p.NumComments, Equals, int32(2))
+	storePost(m.ctx, p)
+
+	key := datastore.NewKey(m.ctx, CommentEntity, "", 0, p.Slug)
+	datastore.PutMulti(m.ctx, []*datastore.Key{key, key, key}, comments)
+
+	loaded, comments := loadPost(m.ctx, p.Slug.StringID())
+	c.Check(loaded.NumComments, Equals, int32(3))
+	c.Check(len(comments), Equals, 3)
 }
