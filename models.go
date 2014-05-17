@@ -5,8 +5,6 @@ import (
 	"appengine/datastore"
 	"appengine/memcache"
 	"appengine/user"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
 	"html/template"
@@ -148,30 +146,26 @@ func loadPost(c appengine.Context, slugString string) (Post, []Comment) {
 
 // Counts posts and caches the result.
 func getPageCount(c appengine.Context) int {
-	item, err := memcache.Get(c, postCountCacheKey)
 	var count int
-	if err == nil {
-		if value, cnt := binary.Varint(item.Value); cnt > 0 {
-			count = int(value)
-		} else {
-			panic(errors.New("Cannot decode cached count"))
+	_, err := memcache.Gob.Get(c, postCountCacheKey, &count)
+	if err != nil {
+		// Cache misses, but also memcache not available etc.
+		if err != memcache.ErrCacheMiss {
+			// TODO(martinprobst): Disambiguate programming errors vs memcache
+			// unavailable.
+			c.Warningf("Error while trying to read page count: %s", err)
 		}
-	} else if err == memcache.ErrCacheMiss {
 		count, err = datastore.NewQuery(PostEntity).Count(c)
 		if err != nil {
 			panic(err)
 		}
 		c.Infof("Counted %v posts", count)
-		buf := make([]byte, binary.MaxVarintLen64)
-		binary.PutVarint(buf, int64(count))
-		item := &memcache.Item{
+		// Ignore potential error
+		memcache.Gob.Set(c, &memcache.Item{
 			Key:        postCountCacheKey,
-			Value:      buf,
+			Object:     count,
 			Expiration: 1 * time.Hour,
-		}
-		memcache.Set(c, item) // ignore err
-	} else if err != nil {
-		panic(err)
+		})
 	}
 	return (count / postsPerPage) + 1
 }
