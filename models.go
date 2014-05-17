@@ -93,14 +93,14 @@ func pageLastUpdated(c appengine.Context) time.Time {
 		return lastUpdated
 	}
 	q := datastore.NewQuery(PostEntity).
-		Order("-created").
+		Order("-updated").
 		Limit(1)
 	q = filterDraft(c, q)
 	posts := make([]Post, 0, 1)
 	if _, err := q.GetAll(c, &posts); err != nil {
 		panic(err)
 	}
-	lastUpdated = posts[0].Created
+	lastUpdated = posts[0].Updated
 	// Ok to fail.
 	memcache.Gob.Set(c, &memcache.Item{
 		Key:    lastUpdatedCacheKey,

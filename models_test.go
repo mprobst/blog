@@ -82,5 +82,5 @@ func (m *ModelsTest) TestPageLastUpdated(c *C) {
 	// Wait for writes to apply - no way to actually flush datastore for test.
 	time.Sleep(100 * time.Millisecond)
 	lastUpdated := pageLastUpdated(m.ctx)
-	c.Check(lastUpdated, Equals, created)
+	c.Check(lastUpdated, Equals, updated)
 }
