@@ -62,7 +62,9 @@ func init() {
 	log.Println("Routes set up, ready to serve.")
 }
 
-func appEngineHandler(f func(c appengine.Context, rw http.ResponseWriter, r *http.Request)) http.HandlerFunc {
+type appEngineHandlerFunc func(c appengine.Context, rw http.ResponseWriter, r *http.Request)
+
+func appEngineHandler(f appEngineHandlerFunc) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		c := appengine.NewContext(r)
 		defer func() {
@@ -161,13 +163,14 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p := Post{}
+	var p *Post
 
 	vars := mux.Vars(r)
 	if slug, ok := vars["slug"]; ok {
 		p, _ = loadPost(c, slug)
 	} else {
 		// New post.
+		p = &Post{}
 		p.Created = time.Now()
 	}
 	var action string
@@ -180,18 +183,18 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 		action = r.Form.Get("action")
 		r.Form.Del("action") // The button used to post, not of interest below
 		p.Draft = false      // Default to false, unless the form contains true
-		if err := decoder.Decode(&p, r.Form); err != nil {
+		if err := decoder.Decode(p, r.Form); err != nil {
 			panic(err)
 		}
 	}
 	p.Updated = time.Now()
 
 	if r.Method == "POST" && action == "Post" {
-		storePost(c, &p)
+		storePost(c, p)
 		url := p.Route(routeShowPost)
 		http.Redirect(w, r, url.String(), http.StatusSeeOther)
 		return
 	}
 
-	renderEditPost(w, &p)
+	renderEditPost(w, p)
 }

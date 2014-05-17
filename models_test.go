@@ -43,23 +43,31 @@ func (m *ModelsTest) TestPageCount(c *C) {
 		storePost(m.ctx, &p)
 	}
 	// Wait for writes to apply - no way to actually flush datastore for test.
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	// Invalidate cache.
 	memcache.Delete(m.ctx, postCountCacheKey)
 	c.Check(getPageCount(m.ctx), Equals, 2)
 }
 
-func (m *ModelsTest) TestLoadStorePost(c *C) {
+var updated time.Time = time.Now().Truncate(1 * time.Second)
+var created time.Time = updated.Add(-20 * time.Minute)
+
+func testPost() *Post {
 	p := Post{
 		Title: "Hello World",
 		Text:  "Test content",
 		Timestamps: Timestamps{
-			Created: time.Now(),
-			Updated: time.Now(),
+			Created: created,
+			Updated: updated,
 		},
 	}
-	storePost(m.ctx, &p)
+	return &p
+}
+
+func (m *ModelsTest) TestLoadStorePost(c *C) {
+	p := testPost()
+	storePost(m.ctx, p)
 	c.Check(p.Slug, Not(IsNil))
 	c.Check(p.Slug.StringID(), Equals, "hello-world")
 
@@ -69,11 +77,10 @@ func (m *ModelsTest) TestLoadStorePost(c *C) {
 }
 
 func (m *ModelsTest) TestPageLastUpdated(c *C) {
-	createdTime := time.Now().Truncate(1 * time.Second)
-	p := Post{Timestamps: Timestamps{Created: createdTime}}
-	storePost(m.ctx, &p)
+	p := testPost()
+	storePost(m.ctx, p)
 	// Wait for writes to apply - no way to actually flush datastore for test.
 	time.Sleep(100 * time.Millisecond)
 	lastUpdated := pageLastUpdated(m.ctx)
-	c.Check(lastUpdated, Equals, createdTime)
+	c.Check(lastUpdated, Equals, created)
 }

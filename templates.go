@@ -97,9 +97,9 @@ func init() {
 		template.New("tmpl/feed.xml").Funcs(funcMap).ParseFiles("tmpl/feed.xml"))
 }
 
-func renderPost(wr io.Writer, post Post, comments []Comment) {
+func renderPost(wr io.Writer, post *Post, comments []Comment) {
 	renderTemplate(wr, templates["tmpl/post_single.html"], map[string]interface{}{
-		"Post":     &post,
+		"Post":     post,
 		"Comments": comments,
 	})
 }

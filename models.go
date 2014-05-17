@@ -121,12 +121,12 @@ func createSlug(c appengine.Context, slugString string) *datastore.Key {
 	return datastore.NewKey(c, PostEntity, slugString, 0, nil)
 }
 
-func loadPost(c appengine.Context, slugString string) (Post, []Comment) {
+func loadPost(c appengine.Context, slugString string) (*Post, []Comment) {
 	slug := createSlug(c, slugString)
-	p := Post{Slug: slug}
 	comments := make([]Comment, 0)
+	p := &Post{Slug: slug}
 
-	err := datastore.Get(c, slug, &p)
+	err := datastore.Get(c, slug, p)
 	if err != nil {
 		panic(err)
 	}
