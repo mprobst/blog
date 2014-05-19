@@ -1,3 +1,16 @@
+# For last updated
+- kind: blog_post
+  properties:
+  - name: draft
+  - name: updated
+    direction: desc
+# For display
+- kind: blog_post
+  properties:
+  - name: draft
+  - name: created
+    direction: desc
+# To get comments on a post
 indexes:
 - kind: blog_comment
   ancestor: yes
