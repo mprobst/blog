@@ -1,3 +1,4 @@
+indexes:
 # For last updated
 - kind: blog_post
   properties:
@@ -11,7 +12,6 @@
   - name: created
     direction: desc
 # To get comments on a post
-indexes:
 - kind: blog_comment
   ancestor: yes
   properties:
