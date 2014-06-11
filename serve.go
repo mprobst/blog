@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
+	"github.com/mjibson/appstats"
 	"log"
 	"net/http"
 	"runtime"
@@ -46,16 +47,16 @@ func init() {
 		rw.Write([]byte(strconv.FormatBool(user.IsAdmin(c))))
 	})
 
-	s.HandleFunc("/", appEngineHandler(indexPage))
-	s.HandleFunc("/{page:\\d*}/", appEngineHandler(indexPage))
+	s.Handle("/", appEngineHandler(indexPage))
+	s.Handle("/{page:\\d*}/", appEngineHandler(indexPage))
 
 	s.Handle("/feed", http.RedirectHandler("/blog/feed/1", http.StatusMovedPermanently))
-	s.HandleFunc("/feed/{page:\\d*}", appEngineHandler(feed))
+	s.Handle("/feed/{page:\\d*}", appEngineHandler(feed))
 
-	s.HandleFunc("/new", appEngineHandler(editPost))
+	s.Handle("/new", appEngineHandler(editPost))
 	postPrefix := "/{ymd:\\d{4}/\\d{1,2}/\\d{1,2}}/{slug}/"
-	routeShowPost = s.HandleFunc(postPrefix, appEngineHandler(showPost))
-	routeEditPost = s.HandleFunc(postPrefix+"edit", appEngineHandler(editPost))
+	routeShowPost = s.Handle(postPrefix, appEngineHandler(showPost))
+	routeEditPost = s.Handle(postPrefix+"edit", appEngineHandler(editPost))
 
 	http.Handle("/", router)
 
@@ -64,9 +65,8 @@ func init() {
 
 type appEngineHandlerFunc func(c appengine.Context, rw http.ResponseWriter, r *http.Request)
 
-func appEngineHandler(f appEngineHandlerFunc) http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
-		c := appengine.NewContext(r)
+func appEngineHandler(f appEngineHandlerFunc) http.Handler {
+	recovering := func(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				stack := make([]byte, 4*(2<<10))
@@ -77,6 +77,7 @@ func appEngineHandler(f appEngineHandlerFunc) http.HandlerFunc {
 		}()
 		f(c, rw, r)
 	}
+	return appstats.NewHandler(recovering)
 }
 
 func handleError(c appengine.Context, rw http.ResponseWriter, r *http.Request, obj interface{}, stack []byte) {
