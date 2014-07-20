@@ -9,11 +9,19 @@ body {
   background-color: white;
   padding-bottom: 0.5em;
   margin: 0;
+  -webkit-hyphens: auto;
+  -moz-hyphens: auto;
+  -ms-hyphens: auto;
+  hyphens: auto;
 }
 code {
   font-family: Consolas, Inconsolata, 'Andale Mono', monospace;
   background-color: #EEE;
   border: 1px solid #DDD;
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
 }
 header h1 {
   margin-left: 0.8em;
@@ -62,6 +70,10 @@ pre {
   font-family: Consolas, Inconsolata, 'Andale Mono', monospace;
   overflow-x: auto;
   margin: 1em;
+  -webkit-hyphens: none;
+  -moz-hyphens: none;
+  -ms-hyphens: none;
+  hyphens: none;
 }
 .linenums {
   margin-left: .5em;
