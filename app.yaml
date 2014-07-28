@@ -14,7 +14,9 @@ handlers:
   expiration: "30d"
 - url: /blog/js
   static_dir: static/js
+  expiration: "1d"
 - url: /blog/css
   static_dir: static/css
+  expiration: "1d"
 - url: /.*
   script: _go_app
