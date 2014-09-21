@@ -102,6 +102,9 @@ func pageLastUpdated(c appengine.Context) time.Time {
 	if _, err := q.GetAll(c, &posts); err != nil {
 		panic(err)
 	}
+	if len(posts) < 1 {
+		return time.Unix(0, 0)
+	}
 	lastUpdated = posts[0].Updated
 	// Ok to fail.
 	memcache.Gob.Set(c, &memcache.Item{
