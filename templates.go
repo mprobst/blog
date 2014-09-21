@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday"
 )
 
@@ -37,9 +38,6 @@ func markdown(s string, htmlFlags int) template.HTML {
 	htmlFlags |= blackfriday.HTML_USE_SMARTYPANTS
 	htmlFlags |= blackfriday.HTML_SMARTYPANTS_FRACTIONS
 	htmlFlags |= blackfriday.HTML_SMARTYPANTS_LATEX_DASHES
-	htmlFlags |= blackfriday.HTML_SANITIZE_OUTPUT
-	htmlFlags |= blackfriday.HTML_NOFOLLOW_LINKS
-
 	renderer := blackfriday.HtmlRenderer(htmlFlags, "", "")
 
 	// Set up the parser
@@ -52,7 +50,10 @@ func markdown(s string, htmlFlags int) template.HTML {
 	extensions |= blackfriday.EXTENSION_SPACE_HEADERS
 	extensions |= blackfriday.EXTENSION_HEADER_IDS
 
-	return template.HTML(string(blackfriday.Markdown([]byte(s), renderer, extensions)))
+	unsafe := blackfriday.Markdown([]byte(s), renderer, extensions)
+	safe := bluemonday.UGCPolicy().SanitizeBytes(unsafe)
+
+	return template.HTML(string(safe))
 }
 
 var templates map[string]*template.Template
