@@ -164,9 +164,11 @@ func getPageCount(c appengine.Context) int {
 	if err != nil {
 		// Cache misses, but also memcache not available etc.
 		if err != memcache.ErrCacheMiss {
-			// TODO(martinprobst): Disambiguate programming errors vs memcache
-			// unavailable.
-			c.Warningf("Error while trying to read page count: %s", err)
+			if !appengine.IsCapabilityDisabled(err) {
+				c.Errorf("Error trying to read page count: %s, proceeding.", err)
+			} else {
+				c.Infof("Memcache unavailable: %s, proceeding.", err)
+			}
 		}
 		count, err = datastore.NewQuery(PostEntity).Count(c)
 		if err != nil {
