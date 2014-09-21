@@ -10,6 +10,8 @@ import (
 	"appengine/memcache"
 )
 
+const DATASTORE_APPLY_WAIT = 500 * time.Millisecond
+
 func TestModels(t *testing.T) { TestingT(t) }
 
 type ModelsTest struct {
@@ -44,7 +46,7 @@ func (m *ModelsTest) TestPageCount(c *C) {
 		storePost(m.ctx, &p)
 	}
 	// Wait for writes to apply - no way to actually flush datastore for test.
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(DATASTORE_APPLY_WAIT)
 
 	// Invalidate cache.
 	memcache.Delete(m.ctx, postCountCacheKey)
@@ -95,7 +97,7 @@ func (m *ModelsTest) TestPageLastUpdated(c *C) {
 	p, _ := testPost()
 	storePost(m.ctx, p)
 	// Wait for writes to apply - no way to actually flush datastore for test.
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(DATASTORE_APPLY_WAIT)
 	lastUpdated := pageLastUpdated(m.ctx)
 	c.Check(lastUpdated, Equals, updated)
 }
