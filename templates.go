@@ -2,7 +2,6 @@ package blog
 
 import (
 	"bytes"
-	"github.com/russross/blackfriday"
 	"html/template"
 	"io"
 	"log"
@@ -10,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/russross/blackfriday"
 )
 
 var funcMap = template.FuncMap{

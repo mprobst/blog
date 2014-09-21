@@ -1,17 +1,19 @@
 package blog
 
 import (
-	"appengine"
-	"appengine/datastore"
-	"appengine/memcache"
-	"appengine/user"
 	"fmt"
-	"github.com/gorilla/mux"
 	"html/template"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gorilla/mux"
+
+	"appengine"
+	"appengine/datastore"
+	"appengine/memcache"
+	"appengine/user"
 )
 
 type Timestamps struct {

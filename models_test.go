@@ -1,13 +1,13 @@
 package blog
 
 import (
+	"fmt"
+	"testing"
+	"time"
+	. "launchpad.net/gocheck"
 	"appengine/aetest"
 	"appengine/datastore"
 	"appengine/memcache"
-	"fmt"
-	. "launchpad.net/gocheck"
-	"testing"
-	"time"
 )
 
 func TestModels(t *testing.T) { TestingT(t) }
