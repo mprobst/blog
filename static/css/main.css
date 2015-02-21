@@ -16,8 +16,6 @@ body {
 }
 code {
   font-family: Consolas, Inconsolata, 'Andale Mono', monospace;
-  background-color: #EEE;
-  border: 1px solid #DDD;
   -webkit-hyphens: none;
   -moz-hyphens: none;
   -ms-hyphens: none;
@@ -75,6 +73,7 @@ pre {
   -ms-hyphens: none;
   hyphens: none;
 }
+
 .linenums {
   margin-left: .5em;
   margin-right: 0em;
