@@ -72,12 +72,25 @@ const (
 )
 
 func loadPosts(c appengine.Context, page int) []Post {
+	posts := make([]Post, 0, postsPerPage)
+
+	cacheKey := pageCacheKey(page - 1)
+	if !user.IsAdmin(c) {
+		_, err := memcache.Gob.Get(c, cacheKey, &posts)
+		if err == nil {
+			c.Infof("Serving cached posts page")
+			return posts
+		}
+		if err != memcache.ErrCacheMiss && !appengine.IsCapabilityDisabled(err) {
+			c.Errorf("Error trying to read page cache: %s, proceeding.", err)
+		}
+	}
+
 	q := datastore.NewQuery(PostEntity).
 		Order("-created").
 		Offset((page - 1) * postsPerPage).
 		Limit(postsPerPage)
 	q = filterDraft(c, q)
-	posts := make([]Post, 0, postsPerPage)
 	keys, err := q.GetAll(c, &posts)
 	if err != nil {
 		panic(err)
@@ -85,7 +98,17 @@ func loadPosts(c appengine.Context, page int) []Post {
 	for i := 0; i < len(keys); i++ {
 		posts[i].Slug = keys[i]
 	}
+
+	memcache.Gob.Set(c, &memcache.Item{
+		Key:    cacheKey,
+		Object: posts,
+	})
+
 	return posts
+}
+
+func pageCacheKey(page int) string {
+	return fmt.Sprintf("blog_post_page-%d", page)
 }
 
 func pageLastUpdated(c appengine.Context) time.Time {
@@ -161,27 +184,31 @@ func loadPost(c appengine.Context, slugString string) (*Post, []Comment) {
 func getPageCount(c appengine.Context) int {
 	var count int
 	_, err := memcache.Gob.Get(c, postCountCacheKey, &count)
-	if err != nil {
-		// Cache misses, but also memcache not available etc.
-		if err != memcache.ErrCacheMiss {
-			if !appengine.IsCapabilityDisabled(err) {
-				c.Errorf("Error trying to read page count: %s, proceeding.", err)
-			} else {
-				c.Infof("Memcache unavailable: %s, proceeding.", err)
-			}
-		}
-		count, err = datastore.NewQuery(PostEntity).Count(c)
-		if err != nil {
-			panic(err)
-		}
-		c.Infof("Counted %v posts", count)
-		// Ignore potential error
-		memcache.Gob.Set(c, &memcache.Item{
-			Key:        postCountCacheKey,
-			Object:     count,
-			Expiration: 1 * time.Hour,
-		})
+	if err == nil {
+		return (count / postsPerPage) + 1
 	}
+
+	// Cache misses, but also memcache not available etc.
+	if err != memcache.ErrCacheMiss {
+		if !appengine.IsCapabilityDisabled(err) {
+			c.Errorf("Error trying to read page count: %s, proceeding.", err)
+		} else {
+			c.Infof("Memcache unavailable: %s, proceeding.", err)
+		}
+	}
+
+	count, err = datastore.NewQuery(PostEntity).Count(c)
+	if err != nil {
+		panic(err)
+	}
+	c.Infof("Counted %v posts", count)
+	// Ignore potential error
+	memcache.Gob.Set(c, &memcache.Item{
+		Key:        postCountCacheKey,
+		Object:     count,
+		Expiration: 1 * time.Hour,
+	})
+
 	return (count / postsPerPage) + 1
 }
 
@@ -206,6 +233,14 @@ func storePost(c appengine.Context, p *Post) {
 	if newPost {
 		c.Infof("Resetting blog_page_count")
 		memcache.Delete(c, postCountCacheKey)
+
+		pages := getPageCount(c)
+		pageCacheKeys := make([]string, pages)
+		for i := 0; i < pages; i++ {
+			pageCacheKeys[i] = pageCacheKey(i)
+		}
+		c.Infof("Deleting page caches %s", pageCacheKeys)
+		memcache.DeleteMulti(c, pageCacheKeys)
 	}
 }
 
