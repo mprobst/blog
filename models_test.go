@@ -1,12 +1,14 @@
 package blog
 
 import (
-	"appengine/aetest"
-	"appengine/datastore"
 	"fmt"
-	. "launchpad.net/gocheck"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
+
+	"appengine/aetest"
+	"appengine/datastore"
 )
 
 func TestModels(t *testing.T) { TestingT(t) }
@@ -16,7 +18,8 @@ type ModelsTest struct {
 }
 
 func (m *ModelsTest) SetUpTest(c *C) {
-	ctx, err := aetest.NewContext(nil)
+	// Strong consistency is needed for the eventually consistent page count to work.
+	ctx, err := aetest.NewContext(&aetest.Options{StronglyConsistentDatastore: true})
 	c.Assert(err, IsNil)
 	m.ctx = ctx
 }
@@ -29,8 +32,7 @@ var _ = Suite(&ModelsTest{})
 
 func (m *ModelsTest) TestSlugCreation(c *C) {
 	c.Check(titleToSlug("Hello World"), Equals, "hello-world")
-	c.Check(
-		titleToSlug("Hello World     123 -- omg"), Equals, "hello-world-123-omg")
+	c.Check(titleToSlug("Hello World     123 -- omg"), Equals, "hello-world-123-omg")
 }
 
 func (m *ModelsTest) TestPageCount(c *C) {
@@ -42,7 +44,6 @@ func (m *ModelsTest) TestPageCount(c *C) {
 		p := Post{Title: fmt.Sprintf("t%d", i)}
 		storePost(m.ctx, &p)
 	}
-	waitForDatastore()
 
 	c.Check(getPageCount(m.ctx), Equals, 2)
 }
@@ -56,8 +57,6 @@ func (m *ModelsTest) TestLoadStorePost(c *C) {
 	c.Check(p.Slug, Not(IsNil))
 	c.Check(p.Slug.StringID(), Equals, "hello-world")
 
-	waitForDatastore()
-
 	posts = loadPosts(m.ctx, 1)
 	c.Check(len(posts), Equals, 1)
 
@@ -69,7 +68,6 @@ func (m *ModelsTest) TestLoadStorePost(c *C) {
 func (m *ModelsTest) TestPageLastUpdated(c *C) {
 	p, _ := testPost()
 	storePost(m.ctx, p)
-	waitForDatastore()
 	lastUpdated := pageLastUpdated(m.ctx)
 	c.Check(lastUpdated, Equals, updated)
 }
@@ -118,9 +116,4 @@ func testPost() (*Post, []Comment) {
 		},
 	}}
 	return &p, comments
-}
-
-func waitForDatastore() {
-	// Wait for writes to apply - no way to actually flush datastore for test.
-	time.Sleep(500 * time.Millisecond)
 }
