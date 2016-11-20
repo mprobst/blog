@@ -47,7 +47,6 @@ func (m *ModelsTest) TestSlugCreation(c *C) {
 
 func (m *ModelsTest) TestPageCount(c *C) {
 	c.Check(getPageCount(m.ctx), Equals, 1)
-	fmt.Printf("Checking memcached version")
 	c.Check(getPageCount(m.ctx), Equals, 1)
 
 	for i := 0; i < 11; i++ {
@@ -69,6 +68,7 @@ func (m *ModelsTest) TestLoadStorePost(c *C) {
 
 	posts = loadPosts(m.ctx, 1)
 	c.Check(len(posts), Equals, 1)
+	c.Check(posts[0].Slug, NotNil)
 
 	p, comments := loadPost(m.ctx, "hello-world")
 	c.Check(p.Title, Equals, "Hello World")
@@ -86,22 +86,23 @@ func (m *ModelsTest) TestPageLastUpdated(c *C) {
 func (m *ModelsTest) TestPageLoadFixesCommentCount(c *C) {
 	p, comments := testPost()
 	comments = append(comments, Comment{
-		Key:    datastore.NewKey(m.ctx, CommentEntity, "", 0, p.Slug),
 		Author: "testAuthor3",
 		Text:   "textText3",
 	})
 	c.Check(p.NumComments, Equals, int32(2))
 	storePost(m.ctx, p)
 
-	datastore.Put(m.ctx, comments)
+	for _, comment := range comments {
+		storeComment(m.ctx, p, &comment)
+	}
 
 	loaded, comments := loadPost(m.ctx, p.Slug.StringID())
 	c.Check(loaded.NumComments, Equals, int32(3))
 	c.Check(len(comments), Equals, 3)
 }
 
-var updated time.Time = time.Now().UTC().Truncate(1 * time.Second)
-var created time.Time = updated.Add(-20 * time.Minute)
+var updated = time.Now().UTC().Truncate(1 * time.Second)
+var created = updated.Add(-20 * time.Minute)
 
 func testPost() (*Post, []Comment) {
 	p := Post{
