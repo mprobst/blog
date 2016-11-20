@@ -46,6 +46,21 @@ func makeRequest() *http.Request {
 	}
 }
 
+func (s *ServingTest) TestIndexPage(c *C) {
+	storeDevelopmentFixture(s.ctx)
+
+	rw := httptest.NewRecorder()
+	r := &http.Request{
+		Method: "GET",
+		URL:    &url.URL{Path: "/blog/1"},
+	}
+	indexPage(s.ctx, rw, r)
+	c.Check(rw.Code, Equals, http.StatusOK)
+	body := rw.Body.String()
+	c.Check(strings.Contains(body, "My post #15"), Equals, true)
+	c.Check(strings.Contains(body, "My post #5"), Equals, false)
+}
+
 func (s *ServingTest) TestEditPost_Render(c *C) {
 	rw := httptest.NewRecorder()
 	r := &http.Request{
