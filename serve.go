@@ -15,6 +15,7 @@ import (
 	"github.com/luci/gae/impl/prod"
 	"github.com/luci/gae/service/datastore"
 	"github.com/luci/gae/service/mail"
+	"github.com/luci/gae/service/info"
 	"github.com/luci/gae/service/user"
 
 	"google.golang.org/appengine"
@@ -75,6 +76,14 @@ func init() {
 			rw.Write([]byte("Unexpected challenge"))
 		}
 	})
+
+	router.Handle("/_/setup_fixture", appEngineHandler(func(ctx context.Context, rw http.ResponseWriter, r *http.Request) {
+		if !info.IsDevAppServer(ctx) {
+			panic(datastore.ErrNoSuchEntity)
+		}
+		storeDevelopmentFixture(ctx)
+		rw.WriteHeader(http.StatusOK)
+	}))
 
 	http.Handle("/", router)
 }
