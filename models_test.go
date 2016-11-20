@@ -5,27 +5,37 @@ import (
 	"testing"
 	"time"
 
+	"github.com/luci/gae/impl/memory"
+	"github.com/luci/gae/service/datastore"
+	"golang.org/x/net/context"
 	. "launchpad.net/gocheck"
-
-	"appengine/aetest"
-	"appengine/datastore"
 )
 
 func TestModels(t *testing.T) { TestingT(t) }
 
 type ModelsTest struct {
-	ctx aetest.Context
+	ctx context.Context
+}
+
+func setUpTestingDatastore(ctx context.Context) {
+	indices, err := datastore.FindAndParseIndexYAML("")
+	if err != nil {
+		panic(err)
+	}
+	t := datastore.GetTestable(ctx)
+	t.Consistent(true)
+	t.AddIndexes(indices...)
 }
 
 func (m *ModelsTest) SetUpTest(c *C) {
 	// Strong consistency is needed for the eventually consistent page count to work.
-	ctx, err := aetest.NewContext(&aetest.Options{StronglyConsistentDatastore: true})
-	c.Assert(err, IsNil)
+	ctx := memory.Use(context.Background())
 	m.ctx = ctx
+	setUpTestingDatastore(ctx)
 }
 
 func (m *ModelsTest) TearDownTest(c *C) {
-	m.ctx.Close()
+	// m.ctx.Close()
 }
 
 var _ = Suite(&ModelsTest{})
@@ -37,7 +47,7 @@ func (m *ModelsTest) TestSlugCreation(c *C) {
 
 func (m *ModelsTest) TestPageCount(c *C) {
 	c.Check(getPageCount(m.ctx), Equals, 1)
-	m.ctx.Infof("Checking memcached version")
+	fmt.Printf("Checking memcached version")
 	c.Check(getPageCount(m.ctx), Equals, 1)
 
 	for i := 0; i < 11; i++ {
@@ -62,6 +72,7 @@ func (m *ModelsTest) TestLoadStorePost(c *C) {
 
 	p, comments := loadPost(m.ctx, "hello-world")
 	c.Check(p.Title, Equals, "Hello World")
+	c.Check(p.Slug, NotNil)
 	c.Check(len(comments), Equals, 0)
 }
 
@@ -75,21 +86,21 @@ func (m *ModelsTest) TestPageLastUpdated(c *C) {
 func (m *ModelsTest) TestPageLoadFixesCommentCount(c *C) {
 	p, comments := testPost()
 	comments = append(comments, Comment{
+		Key:    datastore.NewKey(m.ctx, CommentEntity, "", 0, p.Slug),
 		Author: "testAuthor3",
 		Text:   "textText3",
 	})
 	c.Check(p.NumComments, Equals, int32(2))
 	storePost(m.ctx, p)
 
-	key := datastore.NewKey(m.ctx, CommentEntity, "", 0, p.Slug)
-	datastore.PutMulti(m.ctx, []*datastore.Key{key, key, key}, comments)
+	datastore.Put(m.ctx, comments)
 
 	loaded, comments := loadPost(m.ctx, p.Slug.StringID())
 	c.Check(loaded.NumComments, Equals, int32(3))
 	c.Check(len(comments), Equals, 3)
 }
 
-var updated time.Time = time.Now().Truncate(1 * time.Second)
+var updated time.Time = time.Now().UTC().Truncate(1 * time.Second)
 var created time.Time = updated.Add(-20 * time.Minute)
 
 func testPost() (*Post, []Comment) {

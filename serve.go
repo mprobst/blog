@@ -1,19 +1,25 @@
 package blog
 
 import (
-	"appengine"
-	"appengine/datastore"
-	"appengine/mail"
-	"appengine/user"
 	"fmt"
-	"github.com/gorilla/mux"
-	"github.com/gorilla/schema"
-	"github.com/mjibson/appstats"
-	"log"
 	"net/http"
 	"runtime"
 	"strconv"
 	"time"
+
+	"golang.org/x/net/context"
+
+	"github.com/gorilla/mux"
+	"github.com/gorilla/schema"
+
+	"github.com/luci/gae/impl/prod"
+	"github.com/luci/gae/service/datastore"
+	"github.com/luci/gae/service/mail"
+	"github.com/luci/gae/service/user"
+
+	"google.golang.org/appengine"
+
+	"github.com/luci/luci-go/common/logging"
 )
 
 var router = mux.NewRouter()
@@ -23,7 +29,7 @@ var routeShowPost,
 func init() {
 	// Use app code to render all 404s.
 	router.NotFoundHandler = appEngineHandler(
-		func(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
+		func(c context.Context, rw http.ResponseWriter, r *http.Request) {
 			panic(datastore.ErrNoSuchEntity)
 		})
 
@@ -43,8 +49,8 @@ func init() {
 	s.StrictSlash(true)
 
 	s.HandleFunc("/auth_check", func(rw http.ResponseWriter, req *http.Request) {
-		c := appengine.NewContext(req)
-		rw.Write([]byte(strconv.FormatBool(user.IsAdmin(c))))
+		ctx := prod.Use(appengine.NewContext(req), req)
+		rw.Write([]byte(strconv.FormatBool(user.IsAdmin(ctx))))
 	})
 
 	s.Handle("/", appEngineHandler(indexPage))
@@ -58,29 +64,40 @@ func init() {
 	routeShowPost = s.Handle(postPrefix, appEngineHandler(showPost))
 	routeEditPost = s.Handle(postPrefix+"edit", appEngineHandler(editPost))
 
-	http.Handle("/", router)
+	router.HandleFunc("/.well-known/acme-challenge/{challenge}", func(rw http.ResponseWriter, req *http.Request) {
+		c := mux.Vars(req)["challenge"]
+		if c == "challenge" {
+			rw.Write([]byte("response"))
+		} else if c == "challenge" {
+			rw.Write([]byte("response"))
+		} else {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write([]byte("Unexpected challenge"))
+		}
+	})
 
-	log.Println("Routes set up, ready to serve.")
+	http.Handle("/", router)
 }
 
-type appEngineHandlerFunc func(c appengine.Context, rw http.ResponseWriter, r *http.Request)
+type appEngineHandlerFunc func(c context.Context, rw http.ResponseWriter, r *http.Request)
 
 func appEngineHandler(f appEngineHandlerFunc) http.Handler {
-	recovering := func(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
+	recovering := func(rw http.ResponseWriter, r *http.Request) {
+		ctx := prod.Use(appengine.NewContext(r), r)
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				stack := make([]byte, 4*(2<<10))
 				count := runtime.Stack(stack, false)
 				stack = stack[:count]
-				handleError(c, rw, r, recovered, stack)
+				handleError(ctx, rw, r, recovered, stack)
 			}
 		}()
-		f(c, rw, r)
+		f(ctx, rw, r)
 	}
-	return appstats.NewHandler(recovering)
+	return http.HandlerFunc(recovering)
 }
 
-func handleError(c appengine.Context, rw http.ResponseWriter, r *http.Request, obj interface{}, stack []byte) {
+func handleError(c context.Context, rw http.ResponseWriter, r *http.Request, obj interface{}, stack []byte) {
 	code := http.StatusInternalServerError
 	msg := "An internal error occurred"
 	details := fmt.Sprintf("%s", stack)
@@ -88,10 +105,10 @@ func handleError(c appengine.Context, rw http.ResponseWriter, r *http.Request, o
 		code = http.StatusNotFound
 		msg = "Not found"
 	} else if err, ok := obj.(error); ok {
-		c.Errorf("Error: %+v\n%s", obj, stack)
+		logging.Errorf(c, "Error: %+v\n%s", obj, stack)
 		details = fmt.Sprintf("Error: %s\n%s", err.Error(), details)
 	} else {
-		c.Errorf("Error: %+v\n%s", obj, stack)
+		logging.Errorf(c, "Error: %+v\n%s", obj, stack)
 		details = fmt.Sprintf("Error: %+v\n%s", obj, details)
 	}
 	if code >= 500 {
@@ -102,23 +119,23 @@ func handleError(c appengine.Context, rw http.ResponseWriter, r *http.Request, o
 			Body:    fmt.Sprintf("%s http://probst.io%s\n\n%s", r.Method, r.RequestURI, details),
 		}
 		if err := mail.Send(c, mailMsg); err != nil {
-			c.Errorf("Failed to send error report email: %v", err)
+			logging.Errorf(c, "Failed to send error report email: %v", err)
 		}
 	}
 	rw.WriteHeader(code)
 	renderError(rw, user.IsAdmin(c), msg, details)
 }
 
-func redirectToDomain(c appengine.Context, rw http.ResponseWriter, r *http.Request) {
+func redirectToDomain(c context.Context, rw http.ResponseWriter, r *http.Request) {
 	host := r.Host
 	url := fmt.Sprintf("http://probst.io%s", r.RequestURI)
-	c.Infof("Redirecting request to %s to %s", host, url)
+	logging.Infof(c, "Redirecting request to %s to %s", host, url)
 	// Safe to echo the user's request as we preped http://probst.io to it and it's
 	// properly escaped in Redirect.
 	http.Redirect(rw, r, url, http.StatusMovedPermanently)
 }
 
-func loadPostsPage(c appengine.Context, r *http.Request) ([]Post, int, int) {
+func loadPostsPage(c context.Context, r *http.Request) ([]Post, int, int) {
 	page, err := strconv.Atoi(mux.Vars(r)["page"])
 	if err != nil {
 		page = 1
@@ -131,18 +148,18 @@ func loadPostsPage(c appengine.Context, r *http.Request) ([]Post, int, int) {
 	return posts, page, count
 }
 
-func indexPage(c appengine.Context, w http.ResponseWriter, r *http.Request) {
+func indexPage(c context.Context, w http.ResponseWriter, r *http.Request) {
 	posts, page, count := loadPostsPage(c, r)
 	renderPosts(w, posts, page, count)
 }
 
-func feed(c appengine.Context, w http.ResponseWriter, r *http.Request) {
+func feed(c context.Context, w http.ResponseWriter, r *http.Request) {
 	posts, page, count := loadPostsPage(c, r)
 	lastUpdated := pageLastUpdated(c)
 	renderPostsFeed(w, posts, lastUpdated, page, count)
 }
 
-func showPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
+func showPost(c context.Context, w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	slug, ok := vars["slug"]
 	if !ok {
@@ -154,8 +171,9 @@ func showPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 
 var decoder = schema.NewDecoder()
 
-func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
+func editPost(c context.Context, w http.ResponseWriter, r *http.Request) {
 	if !user.IsAdmin(c) {
+		// info.Get(c).
 		url, err := user.LoginURL(c, r.RequestURI)
 		if err != nil {
 			panic(err)
@@ -172,7 +190,7 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 	} else {
 		// New post.
 		p = &Post{}
-		p.Created = time.Now()
+		p.Created = time.Now().UTC()
 	}
 	var action string
 
@@ -180,7 +198,7 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			panic(err)
 		}
-		c.Infof("Form data: %v", r.Form)
+		logging.Infof(c, "Form data: %v", r.Form)
 		action = r.Form.Get("action")
 		r.Form.Del("action") // The button used to post, not of interest below
 		p.Draft = false      // Default to false, unless the form contains true
@@ -188,7 +206,7 @@ func editPost(c appengine.Context, w http.ResponseWriter, r *http.Request) {
 			panic(err)
 		}
 	}
-	p.Updated = time.Now()
+	p.Updated = time.Now().UTC()
 
 	if r.Method == "POST" && action == "Post" {
 		storePost(c, p)

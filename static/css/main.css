@@ -6,9 +6,12 @@ html {
   max-width: 50em;
 }
 body {
-  background-color: white;
+  position: relative;
   padding-bottom: 0.5em;
   margin: 0;
+
+  background-color: white;
+
   -webkit-hyphens: auto;
   -moz-hyphens: auto;
   -ms-hyphens: auto;
@@ -91,7 +94,8 @@ p.post_byline {
 }
 .admin_link.new {
   display: none;
-  float: right;
+  position: absolute;
+  right: 0;
   margin-right: 2em;
 }
 a.comments_link {

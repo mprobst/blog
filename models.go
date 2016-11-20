@@ -1,6 +1,8 @@
 package blog
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"html/template"
 	"net/url"
@@ -9,24 +11,24 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-
-	"appengine"
-	"appengine/datastore"
-	"appengine/memcache"
-	"appengine/user"
+	"github.com/luci/gae/service/datastore"
+	"github.com/luci/gae/service/memcache"
+	"github.com/luci/gae/service/user"
+	"github.com/luci/luci-go/common/logging"
+	"golang.org/x/net/context"
 )
 
 type Timestamps struct {
-	Created time.Time `datastore:"created"`
-	Updated time.Time `datastore:"updated"`
+	Created time.Time `gae:"created"`
+	Updated time.Time `gae:"updated"`
 }
 
 type Post struct {
-	Slug        *datastore.Key `datastore:"-"`
-	Title       string         `datastore:"title,noindex"`
-	Text        string         `datastore:"text,noindex"`
-	NumComments int32          `datastore:"numComments,noindex"`
-	Draft       bool           `datastore:"draft"`
+	Slug        *datastore.Key `gae:"$key"`
+	Title       string         `gae:"title,noindex"`
+	Text        string         `gae:"text,noindex"`
+	NumComments int32          `gae:"numComments,noindex"`
+	Draft       bool           `gae:"draft"`
 	Timestamps
 }
 
@@ -54,12 +56,13 @@ func (p *Post) TemplateRoute(route *mux.Route) template.URL {
 }
 
 type Comment struct {
-	Author      string `datastore:"author,noindex"`
-	AuthorEmail string `datastore:"authorEmail,noindex"`
-	AuthorUrl   string `datastore:"authorUrl,noindex"`
-	Kind        string `datastore:"kind,noindex"`
-	Text        string `datastore:"text,noindex"`
-	Approved    bool   `datastore:"approved,noindex"`
+	Key         *datastore.Key `gae:"$key"`
+	Author      string         `gae:"author,noindex"`
+	AuthorEmail string         `gae:"authorEmail,noindex"`
+	AuthorUrl   string         `gae:"authorUrl,noindex"`
+	Kind        string         `gae:"kind,noindex"`
+	Text        string         `gae:"text,noindex"`
+	Approved    bool           `gae:"approved,noindex"`
 	Timestamps
 }
 
@@ -71,38 +74,52 @@ const (
 	lastUpdatedCacheKey = "blog_last_updated"
 )
 
-func loadPosts(c appengine.Context, page int) []Post {
+func memcacheGet(c context.Context, key string, value interface{}) error {
+	it, err := memcache.GetKey(c, key)
+	if err != nil {
+		return err
+	}
+	return gob.NewDecoder(bytes.NewReader(it.Value())).Decode(value)
+}
+
+func memcacheSet(c context.Context, key string, value interface{}, expiration time.Duration) error {
+	it := memcache.NewItem(c, key)
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(value); err != nil {
+		return err
+	}
+	it.SetValue(buf.Bytes())
+	it.SetExpiration(expiration)
+	return memcache.Set(c, it)
+}
+
+// loadPosts loads the given page of posts (1-based).
+func loadPosts(c context.Context, page int) []Post {
 	posts := make([]Post, 0, postsPerPage)
 
 	cacheKey := pageCacheKey(page - 1)
 	if !user.IsAdmin(c) {
-		_, err := memcache.Gob.Get(c, cacheKey, &posts)
+		err := memcacheGet(c, cacheKey, &posts)
 		if err == nil {
-			c.Infof("Serving cached posts page")
+			logging.Infof(c, "Serving cached posts page")
 			return posts
 		}
-		if err != memcache.ErrCacheMiss && !appengine.IsCapabilityDisabled(err) {
-			c.Errorf("Error trying to read page cache: %s, proceeding.", err)
+		if err != memcache.ErrCacheMiss {
+			logging.Errorf(c, "Error trying to read page cache: %s, proceeding.", err)
 		}
 	}
 
 	q := datastore.NewQuery(PostEntity).
 		Order("-created").
-		Offset((page - 1) * postsPerPage).
+		Offset(int32((page - 1) * postsPerPage)).
 		Limit(postsPerPage)
 	q = filterDraft(c, q)
-	keys, err := q.GetAll(c, &posts)
+	err := datastore.GetAll(c, q, &posts)
 	if err != nil {
 		panic(err)
 	}
-	for i := 0; i < len(keys); i++ {
-		posts[i].Slug = keys[i]
-	}
 
-	memcache.Gob.Set(c, &memcache.Item{
-		Key:    cacheKey,
-		Object: posts,
-	})
+	memcacheSet(c, cacheKey, posts, 0)
 
 	return posts
 }
@@ -111,18 +128,19 @@ func pageCacheKey(page int) string {
 	return fmt.Sprintf("blog_post_page-%d", page)
 }
 
-func pageLastUpdated(c appengine.Context) time.Time {
+func pageLastUpdated(c context.Context) time.Time {
 	var lastUpdated time.Time
-	_, err := memcache.Gob.Get(c, lastUpdatedCacheKey, &lastUpdated)
+	err := memcacheGet(c, lastUpdatedCacheKey, &lastUpdated)
 	if err == nil {
 		return lastUpdated
 	}
+
 	q := datastore.NewQuery(PostEntity).
 		Order("-updated").
 		Limit(1)
 	q = filterDraft(c, q)
 	posts := make([]Post, 0, 1)
-	if _, err := q.GetAll(c, &posts); err != nil {
+	if err := datastore.GetAll(c, q, &posts); err != nil {
 		panic(err)
 	}
 	if len(posts) < 1 {
@@ -130,30 +148,27 @@ func pageLastUpdated(c appengine.Context) time.Time {
 	}
 	lastUpdated = posts[0].Updated
 	// Ok to fail.
-	memcache.Gob.Set(c, &memcache.Item{
-		Key:    lastUpdatedCacheKey,
-		Object: lastUpdated,
-	})
-	c.Infof("Last Updated %s", lastUpdated)
+	memcacheSet(c, lastUpdatedCacheKey, lastUpdated, 0)
+	logging.Infof(c, "Last Updated %s", lastUpdated)
 	return lastUpdated
 }
 
-func filterDraft(c appengine.Context, q *datastore.Query) *datastore.Query {
+func filterDraft(c context.Context, q *datastore.Query) *datastore.Query {
 	if !user.IsAdmin(c) {
-		return q.Filter("draft =", false)
+		return q.Eq("draft", false)
 	}
 	return q
 }
 
-func createSlug(c appengine.Context, slugString string) *datastore.Key {
+func createSlug(c context.Context, slugString string) *datastore.Key {
 	return datastore.NewKey(c, PostEntity, slugString, 0, nil)
 }
 
-func loadPost(c appengine.Context, slugString string) (*Post, []Comment) {
+func loadPost(c context.Context, slugString string) (*Post, []Comment) {
 	slug := createSlug(c, slugString)
 	p := &Post{Slug: slug}
 
-	err := datastore.Get(c, slug, p)
+	err := datastore.Get(c, p)
 	if err != nil {
 		panic(err)
 	}
@@ -166,13 +181,13 @@ func loadPost(c appengine.Context, slugString string) (*Post, []Comment) {
 	q := datastore.NewQuery(CommentEntity).
 		Ancestor(slug).
 		Order("created")
-	if _, err := q.GetAll(c, &comments); err != nil {
+	if err := datastore.GetAll(c, q, &comments); err != nil {
 		panic(err)
 	}
 	if actualCount := int32(len(comments)); p.NumComments != actualCount {
 		// Somehow comment count got out of sync with post.NumComments,
 		// fix the situation by storing post again.
-		c.Warningf("Post with incorrect comment count %s: %d != %d",
+		logging.Warningf(c, "Post with incorrect comment count %s: %d != %d",
 			p.Url(), p.NumComments, actualCount)
 		p.NumComments = actualCount
 		storePost(c, p)
@@ -181,46 +196,38 @@ func loadPost(c appengine.Context, slugString string) (*Post, []Comment) {
 }
 
 // Counts posts and caches the result.
-func getPageCount(c appengine.Context) int {
-	var count int
-	_, err := memcache.Gob.Get(c, postCountCacheKey, &count)
+func getPageCount(c context.Context) int {
+	var count int64
+	err := memcacheGet(c, postCountCacheKey, &count)
 	if err == nil {
-		return (count / postsPerPage) + 1
+		return int(count/postsPerPage) + 1
 	}
 
 	// Cache misses, but also memcache not available etc.
 	if err != memcache.ErrCacheMiss {
-		if !appengine.IsCapabilityDisabled(err) {
-			c.Errorf("Error trying to read page count: %s, proceeding.", err)
-		} else {
-			c.Infof("Memcache unavailable: %s, proceeding.", err)
-		}
+		logging.Errorf(c, "Error trying to read page count: %s, proceeding.", err)
 	}
 
-	count, err = datastore.NewQuery(PostEntity).Count(c)
+	count, err = datastore.Count(c, datastore.NewQuery(PostEntity))
 	if err != nil {
 		panic(err)
 	}
-	c.Infof("Counted %v posts", count)
+	logging.Infof(c, "Counted %v posts", count)
 	// Ignore potential error
-	memcache.Gob.Set(c, &memcache.Item{
-		Key:        postCountCacheKey,
-		Object:     count,
-		Expiration: 1 * time.Hour,
-	})
+	memcacheSet(c, postCountCacheKey, count, 1*time.Hour)
 
-	return (count / postsPerPage) + 1
+	return int(count/postsPerPage) + 1
 }
 
-func storePost(c appengine.Context, p *Post) {
+func storePost(c context.Context, p *Post) {
 	newPost := p.Slug == nil
 
-	err := datastore.RunInTransaction(c, func(c appengine.Context) error {
+	err := datastore.RunInTransaction(c, func(c context.Context) error {
 		if newPost {
 			slug := slugify(c, p)
 			p.Slug = slug
 		}
-		if _, err := datastore.Put(c, p.Slug, p); err != nil {
+		if err := datastore.Put(c, p); err != nil {
 			return err
 		}
 		return nil
@@ -231,7 +238,7 @@ func storePost(c appengine.Context, p *Post) {
 	}
 
 	if newPost {
-		c.Infof("Resetting blog_page_count")
+		logging.Infof(c, "Resetting blog_page_count")
 		memcache.Delete(c, postCountCacheKey)
 
 		pages := getPageCount(c)
@@ -239,8 +246,8 @@ func storePost(c appengine.Context, p *Post) {
 		for i := 0; i < pages; i++ {
 			pageCacheKeys[i] = pageCacheKey(i)
 		}
-		c.Infof("Deleting page caches %s", pageCacheKeys)
-		memcache.DeleteMulti(c, pageCacheKeys)
+		logging.Infof(c, "Deleting page caches %s", pageCacheKeys)
+		memcache.Delete(c, pageCacheKeys...)
 	}
 }
 
@@ -257,20 +264,21 @@ func titleToSlug(title string) string {
 	return strings.ToLower(slug)
 }
 
-func slugify(c appengine.Context, p *Post) *datastore.Key {
+func slugify(c context.Context, p *Post) *datastore.Key {
 	if p.Slug != nil {
 		return p.Slug
 	}
 	slug := titleToSlug(p.Title)
 	newSlug := slug
-	dummy := Post{}
+	var lastErr error
 	for i := 1; i <= 5; i++ {
 		key := datastore.NewKey(c, PostEntity, newSlug, 0, nil)
-		if datastore.Get(c, key, &dummy) == datastore.ErrNoSuchEntity {
+		var ex *datastore.ExistsResult
+		if ex, lastErr = datastore.Exists(c, key); lastErr == nil && !ex.Get(0) {
 			p.Slug = key
 			return key // Found a free one
 		}
 		newSlug = fmt.Sprint(slug, "-", i)
 	}
-	panic(fmt.Errorf("no free slug for post with title: %s", p.Title))
+	panic(fmt.Errorf("no free slug for post with title: %s - %v", p.Title, lastErr))
 }

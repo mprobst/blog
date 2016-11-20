@@ -1,37 +1,36 @@
 package blog
 
 import (
-	"appengine/aetest"
-	"appengine/user"
-	. "launchpad.net/gocheck"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/luci/gae/impl/memory"
+	"github.com/luci/gae/service/user"
+	"golang.org/x/net/context"
+
+	. "launchpad.net/gocheck"
 )
 
 func TestServing(t *testing.T) { TestingT(t) }
 
 type ServingTest struct {
-	ctx aetest.Context
+	ctx context.Context
 }
 
 func (s *ServingTest) SetUpTest(c *C) {
-	ctx, err := aetest.NewContext(nil)
-	c.Assert(err, IsNil)
+	ctx := memory.Use(context.Background())
 	s.ctx = ctx
-
+	setUpTestingDatastore(ctx)
 	// Calling LoginURL crashes the tests :-(
-	s.ctx.Login(&user.User{
-		Email: "test@example.com",
-		Admin: true,
-	})
+	user.GetTestable(ctx).Login("test@example.com", "", true)
 }
 
 func (s *ServingTest) TearDownTest(c *C) {
-	s.ctx.Close()
+	// s.ctx.Close()
 }
 
 var _ = Suite(&ServingTest{})
