@@ -251,6 +251,29 @@ func storePost(c context.Context, p *Post) {
 	}
 }
 
+func storeComment(c context.Context, p *Post, comment *Comment) error {
+	newComment := comment.Key == nil
+	if p.Slug == nil {
+		return fmt.Errorf("Cannot store comment on new post")
+	}
+
+	if newComment {
+		comment.Key = datastore.NewKey(c, CommentEntity, "", 0, p.Slug)
+		p.NumComments++
+		return datastore.RunInTransaction(c, func(c context.Context) error {
+			if err := datastore.Put(c, p); err != nil {
+				return err
+			}
+			if err := datastore.Put(c, comment); err != nil {
+				return err
+			}
+			return nil
+		}, &datastore.TransactionOptions{XG: true})
+	}
+
+	return datastore.Put(c, comment)
+}
+
 var (
 	slugRE   = regexp.MustCompile("[^-A-Za-z0-9_]")
 	dashesRE = regexp.MustCompile("-{2,}")
